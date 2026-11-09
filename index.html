@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="ko">
 <head>
+ <link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#fbf8f0">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fbf8f0">
@@ -30,6 +32,13 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 .reward-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.reward-main,.reward-streak{padding:13px;border-radius:13px;background:#f7f5ef}.reward-number{font-size:30px;font-weight:850;color:#a66a12;line-height:1.25;margin:4px 0}.streak-number{font-size:25px;font-weight:850;color:#c05b27;line-height:1.4;margin:4px 0}.badge-title{font-size:13px;font-weight:800;margin:16px 0 8px}.badge-list{display:flex;flex-wrap:wrap;gap:7px}.earned-badge,.locked-badge{padding:7px 10px;border-radius:999px;font-size:12px;border:1px solid #ead9ad;background:#fff8e6;color:#775318}.locked-badge{border-color:var(--line);background:#f7f6f2;color:#9a948a}.reward-options{display:grid;grid-template-columns:1fr;gap:8px}.reward-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.reward-option .reward-desc{min-width:0;font-size:13px;line-height:1.4}.reward-option button{flex:0 0 auto;padding:7px 10px;font-size:12px}.reward-option button:disabled{opacity:.45}.approve-reward{margin-top:7px;padding:7px 10px;font-size:12px;background:#edf3eb;border-color:#cbd9c8;color:#31543a}
 @media(min-width:560px){.item-tools{grid-template-columns:repeat(4,minmax(0,1fr))}}
 </style></head>
+ <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+ </script>
 <body><main>
 <header><div><div class="kicker">ILPPANGPPANG · BASIC ENGLISH</div><strong>매일 20문장, 30일 완성</strong></div><div class="day" id="dayBadge">DAY 1 / 30</div></header>
 <h1>1권 순차 학습</h1><p class="sub" id="dateLabel"></p>

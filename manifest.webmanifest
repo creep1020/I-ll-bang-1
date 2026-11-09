@@ -1,10 +1,10 @@
 {
-  "id": "./sequential.html",
+  "id": "./",
   "name": "일빵빵 1권 순차 학습",
   "short_name": "일빵빵 순차",
-  "description": "하루 20문장씩 30일 동안 1권 600문장을 순서대로 학습합니다.",
+  "description": "하루 20문장씩 600문장 학습",
   "lang": "ko-KR",
-  "start_url": "./sequential.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
@@ -14,20 +14,12 @@
     {
       "src": "./icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
       "src": "./icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "type": "image/png"
     }
   ]
 }

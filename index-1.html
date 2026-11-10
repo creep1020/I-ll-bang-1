@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="ko">
+<head>
+ <link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#fbf8f0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf8f0">
+<title>일빵빵 1권 순차 학습 · 음성버전</title>
+<style>
+:root{color-scheme:light;--paper:#fbf8f0;--ink:#28251f;--muted:#827b70;--line:#e7dfd2;--accent:#486b55;--soft:#edf3eb}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 18px 42px}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0 16px;border-bottom:1px solid var(--line)}
+.kicker{font-size:12px;color:var(--muted);letter-spacing:.04em}.day{font-size:14px;font-weight:800;color:var(--accent)}
+h1{font-size:clamp(25px,6vw,34px);margin:15px 0 4px;letter-spacing:-.04em}.sub{font-size:13px;color:var(--muted);margin:0 0 15px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin:14px 0}
+.controls,.actions,.toggle{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+label{font-size:13px;color:var(--muted)}input,select,button{font:inherit;border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:#fff;color:var(--ink)}
+button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.toggle{margin:14px 0}.toggle button{flex:1}.toggle .active{background:var(--accent);color:white;border-color:var(--accent)}
+.progress{height:7px;background:#e9e4da;border-radius:99px;overflow:hidden;margin:10px 0}.progress>span{display:block;height:100%;background:var(--accent);width:0}
+.list{list-style:none;padding:0;margin:0}.list li{display:grid;grid-template-columns:38px 1fr;gap:10px;padding:13px 0;border-bottom:1px solid var(--line);font-size:clamp(18px,4.6vw,23px);line-height:1.48;letter-spacing:-.025em}
+.list li:last-child{border-bottom:0}.num{font-size:12px;color:#a39a8c;padding-top:5px;font-variant-numeric:tabular-nums}.english{font-weight:600}
+.actions button{flex:1;min-width:130px}.status{background:var(--soft);border-radius:12px;padding:11px 12px;font-size:13px;line-height:1.5;margin-top:12px}
+.calendar{margin-top:20px}.calendar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;text-align:center}
+.calendar-grid div{font-size:12px;padding:8px 0}.dow{color:var(--muted)}.calday{background:#faf8f3;border-radius:9px;min-height:38px;display:flex;flex-direction:column;justify-content:center;align-items:center}
+.calday.done{background:#dcebd9;color:#285437;font-weight:800}.calday.today{outline:2px solid var(--accent)}
+.small{font-size:12px;color:var(--muted);line-height:1.55}.foot{margin-top:20px}
+.item-main{min-width:0}.item-text{display:block} .item-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;font-size:13px}.item-tools button,.item-tools label{width:100%;min-width:0;min-height:38px;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;font-size:12px;line-height:1.25;border-radius:9px;white-space:normal;text-align:center}.item-tools label{border:1px solid var(--line);background:#faf9f6;color:var(--muted)}.item-tools input{width:17px;height:17px;flex:0 0 auto;accent-color:var(--accent);padding:0;margin:0}.review-btn{font-size:12px}.speak-btn{background:#edf3eb;border-color:#cbd9c8;color:#31543a}.review-btn.saved{background:#fff1df;border-color:#e6b76c;color:#80500b}.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}.filterbar button.active{background:var(--accent);color:#fff;border-color:var(--accent)}.item-count{font-size:12px;color:var(--muted);margin-left:auto}.record-btn{padding:6px 10px;font-size:12px;border-radius:9px;background:#fff1f0;border-color:#e5b8b3;color:#8b332b}.record-result{display:none;margin-top:9px;padding:10px;border-radius:10px;background:#f5f3ed;font-size:12px;line-height:1.55}.record-result.show{display:block}.record-audio{display:block;width:100%;height:38px;margin-top:7px}
+
+.reward-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.reward-main,.reward-streak{padding:13px;border-radius:13px;background:#f7f5ef}.reward-number{font-size:30px;font-weight:850;color:#a66a12;line-height:1.25;margin:4px 0}.streak-number{font-size:25px;font-weight:850;color:#c05b27;line-height:1.4;margin:4px 0}.badge-title{font-size:13px;font-weight:800;margin:16px 0 8px}.badge-list{display:flex;flex-wrap:wrap;gap:7px}.earned-badge,.locked-badge{padding:7px 10px;border-radius:999px;font-size:12px;border:1px solid #ead9ad;background:#fff8e6;color:#775318}.locked-badge{border-color:var(--line);background:#f7f6f2;color:#9a948a}.reward-options{display:grid;grid-template-columns:1fr;gap:8px}.reward-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.reward-option .reward-desc{min-width:0;font-size:13px;line-height:1.4}.reward-option button{flex:0 0 auto;padding:7px 10px;font-size:12px}.reward-option button:disabled{opacity:.45}.approve-reward{margin-top:7px;padding:7px 10px;font-size:12px;background:#edf3eb;border-color:#cbd9c8;color:#31543a}
+@media(min-width:560px){.item-tools{grid-template-columns:repeat(4,minmax(0,1fr))}}
+</style></head>
+ <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+ </script>
+<body><main>
+<header><div><div class="kicker">ILPPANGPPANG · BASIC ENGLISH</div><strong>매일 20문장, 30일 완성</strong></div><div class="day" id="dayBadge">DAY 1 / 30</div></header>
+<h1>1권 순차 학습</h1><p class="sub" id="dateLabel"></p>
+<section class="panel">
+<div class="controls"><label for="startDate">학습 시작일</label><input type="date" id="startDate"><button id="apply">적용</button><button id="today">오늘의 DAY</button></div>
+<div class="controls" style="margin-top:10px"><button id="prevDay">← 이전 DAY</button><select id="daySelect" aria-label="DAY 선택"></select><button id="nextDay">다음 DAY →</button></div>
+<div class="progress"><span id="progressBar"></span></div><div class="small" id="progressLabel"></div>
+</section>
+<div class="toggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
+<section class="panel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.85배</span></label><input id="voiceRate" type="range" min="0.75" max="1.05" step="0.05" value="0.85" style="width:100%"></div></section>
+<section class="panel"><div class="small" style="margin-bottom:10px">🎙 녹음: 버튼을 눌러 녹음하고, 녹음을 마치면 내 목소리를 다시 들을 수 있어요.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
+<section class="panel">
+<div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
+<div class="status" id="studyStatus">학습을 마친 뒤 완료 버튼을 눌러 기록하세요.</div>
+</section>
+<section class="panel" id="rewardPanel">
+<strong style="font-size:14px">⭐ 나의 학습 보상</strong>
+<div class="reward-stats">
+ <div class="reward-main"><div class="small">사용 가능한 별 포인트</div><div class="reward-number"><span id="starBalance">0</span> ⭐</div><div class="small" id="starNote">오늘 학습을 완료하면 별 1개를 받을 수 있어요.</div></div>
+ <div class="reward-streak"><div class="small">연속 학습</div><div class="streak-number">🔥 <span id="streakCount">0</span>일</div><div class="small" id="streakNote">하루씩 꾸준히 이어가 봐요!</div></div>
+</div>
+<div class="badge-title">획득한 배지</div><div class="badge-list" id="badgeList"></div>
+<div class="badge-title">🎁 별 포인트 보상</div>
+<div class="reward-options" id="rewardOptions"></div>
+<div class="small" id="rewardStatus" aria-live="polite" style="margin-top:9px">보상은 별을 모아 부모님과 함께 확인하고 받아요.</div>
+</section>
+<section class="panel" id="backupPanel">
+<strong style="font-size:14px">💾 학습 기록 백업 · 복원</strong>
+<p class="small" style="margin:8px 0 12px">학습 완료 날짜, 문장별 체크, 복습 목록, 학습 시작일, 음성 속도를 파일로 저장하고 다른 휴대폰에서도 복원할 수 있어요.</p>
+<div class="actions"><button class="primary" id="exportBackup">백업 파일 저장</button><button id="importBackup">백업 파일 불러오기</button></div>
+<input type="file" id="backupFile" accept="application/json,.json" style="display:none">
+<div class="small" id="backupStatus" aria-live="polite" style="margin-top:9px">기기 변경이나 앱 초기화 전에 백업해 주세요.</div>
+</section>
+<section class="panel" id="cloudPanel">
+<strong style="font-size:14px">👨‍👧 부모 · 자녀 학습 공유</strong>
+<p class="small" style="margin:8px 0 0">부모와 자녀의 휴대폰에서 같은 공용 계정으로 로그인하면 학습 기록을 함께 사용할 수 있어요.</p>
+<div class="status" style="margin-top:10px">로그인 후 학습 완료, 문장 체크, 복습 목록, 별 포인트, 보상 요청, 학습 시작일과 음성 속도가 클라우드에 저장됩니다. 최초 로그인 시 이 기기에 있던 기존 기록을 먼저 보존해 올립니다.</div>
+</section>
+<section class="panel calendar">
+<div class="calendar-head"><button id="prevMonth">‹</button><strong id="monthTitle">학습 기록</strong><button id="nextMonth">›</button></div>
+<div class="calendar-grid" id="calendar"></div>
+</section>
+<p class="small foot">학습 기록은 이 기기의 브라우저에 저장됩니다. 백업 파일로 다른 기기에 옮길 수 있습니다. 녹음은 HTTPS 크롬과 마이크 권한이 필요합니다. 녹음 파일은 현재 화면에서 재생할 수 있고 새로고침하면 사라집니다.</p>
+</main>
+<script>
+const DATA=[{"day":1,"items":[{"no":1,"ko":"나는 간다 / 가다.","en":"I go."},{"no":2,"ko":"나는 온다 / 오다.","en":"I come."},{"no":3,"ko":"나는 가진다 / 가지다.","en":"I have."},{"no":4,"ko":"나는 보인다 / 보이다.","en":"I see."},{"no":5,"ko":"나는 들린다 / 들리다.","en":"I hear."},{"no":6,"ko":"나는 멈춘다 / 멈추다.","en":"I stop."},{"no":7,"ko":"나는 앉는다 / 앉다.","en":"I sit."},{"no":8,"ko":"나는 선다 / 서다.","en":"I stand."},{"no":9,"ko":"나는 만난다 / 만나다.","en":"I meet."},{"no":10,"ko":"나는 해 본다 / 해 보다.","en":"I try."},{"no":11,"ko":"너는 간다 / 가다.","en":"You go."},{"no":12,"ko":"너는 온다 / 오다.","en":"You come."},{"no":13,"ko":"너는 가진다 / 가지다.","en":"You have."},{"no":14,"ko":"너는 보인다 / 보이다.","en":"You see."},{"no":15,"ko":"너는 들린다 / 들리다.","en":"You hear."},{"no":16,"ko":"너는 멈춘다 / 멈추다.","en":"You stop."},{"no":17,"ko":"너는 앉는다 / 앉다.","en":"You sit."},{"no":18,"ko":"너는 선다 / 서다.","en":"You stand."},{"no":19,"ko":"너는 만난다 / 만나다.","en":"You meet."},{"no":20,"ko":"너는 해 본다 / 해 보다.","en":"You try."}]},{"day":2,"items":[{"no":21,"ko":"공부해, 좀.","en":"Study, please."},{"no":22,"ko":"만들어, 좀.","en":"Make, please."},{"no":23,"ko":"읽어, 좀.","en":"Read, please."},{"no":24,"ko":"써, 좀.","en":"Write, please."},{"no":25,"ko":"머물러, 좀.","en":"Stay, please."},{"no":26,"ko":"체크해, 좀.","en":"Check, please."},{"no":27,"ko":"씻어, 좀.","en":"Wash, please."},{"no":28,"ko":"기다려, 좀.","en":"Wait, please."},{"no":29,"ko":"일해, 좀.","en":"Work, please."},{"no":30,"ko":"운전해, 좀.","en":"Drive, please."},{"no":31,"ko":"가, 좀.","en":"Go, please."},{"no":32,"ko":"와, 좀.","en":"Come, please."},{"no":33,"ko":"가져, 좀.","en":"Have, please."},{"no":34,"ko":"봐, 좀.","en":"See, please."},{"no":35,"ko":"들어, 좀.","en":"Hear, please."},{"no":36,"ko":"멈춰, 좀.","en":"Stop, please."},{"no":37,"ko":"앉아, 좀.","en":"Sit, please."},{"no":38,"ko":"서, 좀.","en":"Stand, please."},{"no":39,"ko":"만나, 좀.","en":"Meet, please."},{"no":40,"ko":"해 봐, 좀.","en":"Try, please."}]},{"day":3,"items":[{"no":41,"ko":"나는 (진짜) 씻거든.","en":"I do wash."},{"no":42,"ko":"나는 (진짜) 만들거든.","en":"I do make."},{"no":43,"ko":"나는 (진짜) 먹거든.","en":"I do eat."},{"no":44,"ko":"나는 (진짜) 마시거든.","en":"I do drink."},{"no":45,"ko":"나는 (진짜) 청소하거든.","en":"I do clean."},{"no":46,"ko":"나는 (진짜) 읽거든.","en":"I do read."},{"no":47,"ko":"나는 (진짜) 쓰거든.","en":"I do write."},{"no":48,"ko":"나는 (진짜) 공부하거든.","en":"I do study."},{"no":49,"ko":"나는 (진짜) 지켜보거든.","en":"I do watch."},{"no":50,"ko":"나는 (진짜) 게임하거든.","en":"I do play."},{"no":51,"ko":"나는 (진짜) 일하거든.","en":"I do work."},{"no":52,"ko":"나는 (진짜) 운전하거든.","en":"I do drive."},{"no":53,"ko":"나는 (진짜) 기다리거든.","en":"I do wait."},{"no":54,"ko":"나는 (진짜) 체크하거든.","en":"I do check."},{"no":55,"ko":"나는 (진짜) 머물거든.","en":"I do stay."},{"no":56,"ko":"나는 (진짜) 멈추거든.","en":"I do stop."},{"no":57,"ko":"나는 (진짜) 앉거든.","en":"I do sit."},{"no":58,"ko":"나는 (진짜) 서거든.","en":"I do stand."},{"no":59,"ko":"나는 (진짜) 만나거든.","en":"I do meet."},{"no":60,"ko":"나는 (진짜) 해 보거든.","en":"I do try."}]},{"day":4,"items":[{"no":61,"ko":"나는 씻지 않아.","en":"I don't wash."},{"no":62,"ko":"나는 나의 얼굴 씻지 않아. (세수하지 않아)","en":"I don't wash my face."},{"no":63,"ko":"나는 만들지 않아.","en":"I don't make."},{"no":64,"ko":"나는 커피를 만들지 않아.","en":"I don't make coffee."},{"no":65,"ko":"나는 먹지 않아.","en":"I don't eat."},{"no":66,"ko":"나는 아침을 먹지 않아.","en":"I don't eat breakfast."},{"no":67,"ko":"나는 마시지 않아.","en":"I don't drink."},{"no":68,"ko":"나는 주스를 마시지 않아.","en":"I don't drink juice."},{"no":69,"ko":"나는 청소하지 않아.","en":"I don't clean."},{"no":70,"ko":"나는 그 방을 청소하지 않아.","en":"I don't clean the room."},{"no":71,"ko":"나는 읽지 않아.","en":"I don't read."},{"no":72,"ko":"나는 그 책을 읽지 않아.","en":"I don't read the book."},{"no":73,"ko":"나는 쓰지 않아.","en":"I don't write."},{"no":74,"ko":"나는 편지를 쓰지 않아.","en":"I don't write a letter."},{"no":75,"ko":"나는 공부하지 않아.","en":"I don't study."},{"no":76,"ko":"나는 영어를 공부하지 않아.","en":"I don't study English."},{"no":77,"ko":"나는 지켜보지 않아.","en":"I don't watch."},{"no":78,"ko":"나는 TV를 보지 않아.","en":"I don't watch TV."},{"no":79,"ko":"나는 게임하지 않아.","en":"I don't play."},{"no":80,"ko":"나는 테니스 게임 하지 않아.","en":"I don't play tennis."}]},{"day":5,"items":[{"no":81,"ko":"너는 씻니?","en":"Do you wash?"},{"no":82,"ko":"너는 너의 자동차 씻니? (세차하니?)","en":"Do you wash your car?"},{"no":83,"ko":"너는 만드니?","en":"Do you make?"},{"no":84,"ko":"너는 (마시는) 차 만드니?","en":"Do you make tea?"},{"no":85,"ko":"너는 먹니?","en":"Do you eat?"},{"no":86,"ko":"너는 점심 먹니?","en":"Do you eat lunch?"},{"no":87,"ko":"너는 마시니?","en":"Do you drink?"},{"no":88,"ko":"너는 물을 마시니?","en":"Do you drink water?"},{"no":89,"ko":"너는 청소하니?","en":"Do you clean?"},{"no":90,"ko":"너는 그 침실 청소하니?","en":"Do you clean the bedroom?"},{"no":91,"ko":"너는 읽니?","en":"Do you read?"},{"no":92,"ko":"너는 그 신문 읽니?","en":"Do you read the newspaper?"},{"no":93,"ko":"너는 쓰니?","en":"Do you write?"},{"no":94,"ko":"너는 이야기 쓰니?","en":"Do you write a story?"},{"no":95,"ko":"너는 공부하니?","en":"Do you study?"},{"no":96,"ko":"너는 중국어 공부하니?","en":"Do you study Chinese?"},{"no":97,"ko":"너는 지켜보니?","en":"Do you watch?"},{"no":98,"ko":"너는 그 경기 보니?","en":"Do you watch the game?"},{"no":99,"ko":"너는 연주하니?","en":"Do you play?"},{"no":100,"ko":"너는 피아노 연주하니?","en":"Do you play the piano?"}]},{"day":6,"items":[{"no":101,"ko":"너는 접시를 씻니?","en":"Do you wash the dishes?"},{"no":102,"ko":"너는 접시를 씻지 않니? (설거지하지 않니?)","en":"Don't you wash the dishes?"},{"no":103,"ko":"너는 치즈 케이크를 만드니?","en":"Do you make cheese cake?"},{"no":104,"ko":"너는 치즈 케이크를 만들지 않니?","en":"Don't you make cheese cake?"},{"no":105,"ko":"너는 저녁을 먹니?","en":"Do you eat dinner?"},{"no":106,"ko":"너는 저녁을 먹지 않니?","en":"Don't you eat dinner?"},{"no":107,"ko":"너는 콜라를 마시니?","en":"Do you drink coke?"},{"no":108,"ko":"너는 콜라를 마시지 않니?","en":"Don't you drink coke?"},{"no":109,"ko":"너는 그 거실을 청소하니?","en":"Do you clean the living room?"},{"no":110,"ko":"너는 그 거실을 청소하지 않니?","en":"Don't you clean the living room?"},{"no":111,"ko":"너는 그 잡지를 읽니?","en":"Do you read the magazine?"},{"no":112,"ko":"너는 그 잡지를 읽지 않니?","en":"Don't you read the magazine?"},{"no":113,"ko":"너는 주소를 쓰니?","en":"Do you write address?"},{"no":114,"ko":"너는 주소를 쓰지 않니?","en":"Don't you write address?"},{"no":115,"ko":"너는 한국어를 공부하니?","en":"Do you study Korean?"},{"no":116,"ko":"너는 한국어를 공부하지 않니?","en":"Don't you study Korean?"},{"no":117,"ko":"너는 영화를 보니?","en":"Do you watch a movie?"},{"no":118,"ko":"너는 영화를 보지 않니?","en":"Don't you watch a movie?"},{"no":119,"ko":"너는 야구 게임을 하니?","en":"Do you play baseball?"},{"no":120,"ko":"너는 야구 게임을 하지 않니?","en":"Don't you play baseball?"}]},{"day":7,"items":[{"no":121,"ko":"나는 갈 수 있다.","en":"I can go."},{"no":122,"ko":"나는 올 수 있다.","en":"I can come."},{"no":123,"ko":"나는 걸을 수 있다.","en":"I can walk."},{"no":124,"ko":"나는 뛸 수 있다.","en":"I can run."},{"no":125,"ko":"나는 운전할 수 있다.","en":"I can drive."},{"no":126,"ko":"나는 살 수 있다.","en":"I can live."},{"no":127,"ko":"나는 머물 수 있다.","en":"I can stay."},{"no":128,"ko":"나는 기다릴 수 있다.","en":"I can wait."},{"no":129,"ko":"나는 일할 수 있다.","en":"I can work."},{"no":130,"ko":"나는 잘 수 있다.","en":"I can sleep."},{"no":131,"ko":"너는 갈 수 있다.","en":"You can go."},{"no":132,"ko":"너는 올 수 있다.","en":"You can come."},{"no":133,"ko":"너는 걸을 수 있다.","en":"You can walk."},{"no":134,"ko":"너는 뛸 수 있다.","en":"You can run."},{"no":135,"ko":"너는 운전할 수 있다.","en":"You can drive."},{"no":136,"ko":"너는 살 수 있다.","en":"You can live."},{"no":137,"ko":"너는 머물 수 있다.","en":"You can stay."},{"no":138,"ko":"너는 기다릴 수 있다.","en":"You can wait."},{"no":139,"ko":"너는 일할 수 있다.","en":"You can work."},{"no":140,"ko":"너는 잘 수 있다.","en":"You can sleep."}]},{"day":8,"items":[{"no":141,"ko":"나는 집에 갈 수 없어.","en":"I can't go home."},{"no":142,"ko":"나는 오늘 올 수 없어.","en":"I can't come today."},{"no":143,"ko":"나는 함께 걸을 수 없어.","en":"I can't walk together."},{"no":144,"ko":"나는 혼자 뛸 수 없어.","en":"I can't run alone."},{"no":145,"ko":"나는 다시 운전할 수 없어.","en":"I can't drive again."},{"no":146,"ko":"나는 여기 살 수 없어.","en":"I can't live here."},{"no":147,"ko":"나는 거기 머물 수 없어.","en":"I can't stay there."},{"no":148,"ko":"나는 더 이상 기다릴 수 없어.","en":"I can't wait more."},{"no":149,"ko":"나는 열심히 일할 수 없어.","en":"I can't work hard."},{"no":150,"ko":"나는 오늘 밤 잘 수 없어.","en":"I can't sleep tonight."},{"no":151,"ko":"너는 집에 갈 수 없어.","en":"You can't go home."},{"no":152,"ko":"너는 오늘 올 수 없어.","en":"You can't come today."},{"no":153,"ko":"너는 함께 걸을 수 없어.","en":"You can't walk together."},{"no":154,"ko":"너는 혼자 뛸 수 없어.","en":"You can't run alone."},{"no":155,"ko":"너는 다시 운전할 수 없어.","en":"You can't drive again."},{"no":156,"ko":"너는 여기 살 수 없어.","en":"You can't live here."},{"no":157,"ko":"너는 거기 머물 수 없어.","en":"You can't stay there."},{"no":158,"ko":"너는 더 이상 기다릴 수 없어.","en":"You can't wait more."},{"no":159,"ko":"너는 열심히 일할 수 없어.","en":"You can't work hard."},{"no":160,"ko":"너는 오늘 밤 잘 수 없어.","en":"You can't sleep tonight."}]},{"day":9,"items":[{"no":161,"ko":"너는 학교 갈 수 있니?","en":"Can you go to school?"},{"no":162,"ko":"내가 학교 갈 수 있을까?","en":"Can I go to school?"},{"no":163,"ko":"너는 그 회사로 올 수 있니?","en":"Can you come to the office?"},{"no":164,"ko":"내가 그 회사로 올 수 있을까?","en":"Can I come to the office?"},{"no":165,"ko":"너는 그 가게로 걸어갈 수 있니?","en":"Can you walk to the shop?"},{"no":166,"ko":"내가 그 가게로 걸어갈 수 있을까?","en":"Can I walk to the shop?"},{"no":167,"ko":"너는 그 역으로 뛰어갈 수 있니?","en":"Can you run to the station?"},{"no":168,"ko":"내가 그 역으로 뛰어갈 수 있을까?","en":"Can I run to the station?"},{"no":169,"ko":"너는 그 시장으로 운전해 갈 수 있니?","en":"Can you drive to the market?"},{"no":170,"ko":"내가 그 시장으로 운전해 갈 수 있을까?","en":"Can I drive to the market?"},{"no":171,"ko":"너는 그 집에서 살 수 있니?","en":"Can you live in the house?"},{"no":172,"ko":"내가 그 집에서 살 수 있을까?","en":"Can I live in the house?"},{"no":173,"ko":"너는 그 호텔에서 머물 수 있니?","en":"Can you stay in the hotel?"},{"no":174,"ko":"내가 그 호텔에서 머물 수 있을까?","en":"Can I stay in the hotel?"},{"no":175,"ko":"너는 그 몰에서 기다릴 수 있니?","en":"Can you wait in the mall?"},{"no":176,"ko":"내가 그 몰에서 기다릴 수 있을까?","en":"Can I wait in the mall?"},{"no":177,"ko":"너는 그 도서관에서 일할 수 있니?","en":"Can you work in the library?"},{"no":178,"ko":"내가 그 도서관에서 일할 수 있을까?","en":"Can I work in the library?"},{"no":179,"ko":"너는 그 의자에서 잘 수 있니?","en":"Can you sleep on the chair?"},{"no":180,"ko":"내가 그 의자에서 잘 수 있을까?","en":"Can I sleep on the chair?"}]},{"day":10,"items":[{"no":181,"ko":"너는 갈 수 없니?","en":"Can't you go?"},{"no":182,"ko":"너는 교회로 갈 수 없니?","en":"Can't you go to church?"},{"no":183,"ko":"너는 올 수 없니?","en":"Can't you come?"},{"no":184,"ko":"너는 그 가게로 올 수 없니?","en":"Can't you come to the store?"},{"no":185,"ko":"너는 걸을 수 없니?","en":"Can't you walk?"},{"no":186,"ko":"너는 그 우체국으로 걸어갈 수 없니?","en":"Can't you walk to the post office?"},{"no":187,"ko":"너는 뛸 수 없니?","en":"Can't you run?"},{"no":188,"ko":"너는 그 해변으로 뛰어갈 수 없니?","en":"Can't you run to the beach?"},{"no":189,"ko":"너는 운전할 수 없니?","en":"Can't you drive?"},{"no":190,"ko":"너는 그 공항으로 운전해 갈 수 없니?","en":"Can't you drive to the airport?"},{"no":191,"ko":"너는 살 수 없니?","en":"Can't you live?"},{"no":192,"ko":"너는 그 도시에서 살 수 없니?","en":"Can't you live in the city?"},{"no":193,"ko":"너는 머무를 수 없니?","en":"Can't you stay?"},{"no":194,"ko":"너는 그 아파트에서 머무를 수 없니?","en":"Can't you stay in the apartment?"},{"no":195,"ko":"너는 기다릴 수 없니?","en":"Can't you wait?"},{"no":196,"ko":"너는 그 교실에서 기다릴 수 없니?","en":"Can't you wait in the classroom?"},{"no":197,"ko":"너는 일할 수 없니?","en":"Can't you work?"},{"no":198,"ko":"너는 그 홀에서 일할 수 없니?","en":"Can't you work in the hall?"},{"no":199,"ko":"너는 잘 수 없니?","en":"Can't you sleep?"},{"no":200,"ko":"너는 그 소파에서 잘 수 없니?","en":"Can't you sleep on the sofa?"}]},{"day":11,"items":[{"no":201,"ko":"나는 열 것이다.","en":"I will open."},{"no":202,"ko":"나는 닫을 것이다.","en":"I will close."},{"no":203,"ko":"나는 살 것이다.","en":"I will buy."},{"no":204,"ko":"나는 가질 것이다.","en":"I will have."},{"no":205,"ko":"나는 방문할 것이다.","en":"I will visit."},{"no":206,"ko":"나는 시작할 것이다.","en":"I will start."},{"no":207,"ko":"나는 끝낼 것이다.","en":"I will finish."},{"no":208,"ko":"나는 만날 것이다.","en":"I will meet."},{"no":209,"ko":"나는 가르칠 것이다.","en":"I will teach."},{"no":210,"ko":"나는 배울 것이다.","en":"I will learn."},{"no":211,"ko":"너는 열 것이다.","en":"You will open."},{"no":212,"ko":"너는 닫을 것이다.","en":"You will close."},{"no":213,"ko":"너는 살 것이다.","en":"You will buy."},{"no":214,"ko":"너는 가질 것이다.","en":"You will have."},{"no":215,"ko":"너는 방문할 것이다.","en":"You will visit."},{"no":216,"ko":"너는 시작할 것이다.","en":"You will start."},{"no":217,"ko":"너는 끝낼 것이다.","en":"You will finish."},{"no":218,"ko":"너는 만날 것이다.","en":"You will meet."},{"no":219,"ko":"너는 가르칠 것이다.","en":"You will teach."},{"no":220,"ko":"너는 배울 것이다.","en":"You will learn."}]},{"day":12,"items":[{"no":221,"ko":"나는 열지 않을 거야.","en":"I will not (won't) open."},{"no":222,"ko":"나는 그 문을 열지 않을 거야.","en":"I will not (won't) open the door."},{"no":223,"ko":"나는 닫지 않을 거야.","en":"I will not (won't) close."},{"no":224,"ko":"나는 그 창문을 닫지 않을 거야.","en":"I will not (won't) close the window."},{"no":225,"ko":"나는 사지 않을 거야.","en":"I will not (won't) buy."},{"no":226,"ko":"나는 그 티켓을 사지 않을 거야.","en":"I will not (won't) buy the ticket."},{"no":227,"ko":"나는 가지지 않을 거야.","en":"I will not (won't) have."},{"no":228,"ko":"나는 파티를 가지지 않을 거야.","en":"I will not (won't) have a party."},{"no":229,"ko":"나는 방문하지 않을 거야.","en":"I will not (won't) visit."},{"no":230,"ko":"나는 그 집을 방문하지 않을 거야.","en":"I will not (won't) visit the house."},{"no":231,"ko":"나는 시작하지 않을 거야.","en":"I will not (won't) start."},{"no":232,"ko":"나는 그 시험을 시작하지 않을 거야.","en":"I will not (won't) start the test."},{"no":233,"ko":"나는 끝내지 않을 거야.","en":"I will not (won't) finish."},{"no":234,"ko":"나는 숙제를 끝내지 않을 거야.","en":"I will not (won't) finish homework."},{"no":235,"ko":"나는 만나지 않을 거야.","en":"I will not (won't) meet."},{"no":236,"ko":"나는 그 소년을 만나지 않을 거야.","en":"I will not (won't) meet the boy."},{"no":237,"ko":"나는 가르치지 않을 거야.","en":"I will not (won't) teach."},{"no":238,"ko":"나는 그 개를 가르치지 않을 거야.","en":"I will not (won't) teach the dog."},{"no":239,"ko":"나는 배우지 않을 거야.","en":"I will not (won't) learn."},{"no":240,"ko":"나는 그 언어를 배우지 않을 거야.","en":"I will not (won't) learn the language."}]},{"day":13,"items":[{"no":241,"ko":"너는 결혼할 거니?","en":"Will you marry?"},{"no":242,"ko":"너는 도울 거니?","en":"Will you help?"},{"no":243,"ko":"너는 부를 거니?","en":"Will you sing?"},{"no":244,"ko":"너는 전화할 거니?","en":"Will you call?"},{"no":245,"ko":"너는 시도해 볼 거니?","en":"Will you try?"},{"no":246,"ko":"너는 고를 거니?","en":"Will you pick?"},{"no":247,"ko":"너는 옮길 거니?","en":"Will you move?"},{"no":248,"ko":"너는 체크할 거니?","en":"Will you check?"},{"no":249,"ko":"너는 줄 거니?","en":"Will you give?"},{"no":250,"ko":"너는 놓을 거니?","en":"Will you put?"},{"no":251,"ko":"너는 열 거니?","en":"Will you open?"},{"no":252,"ko":"너는 닫을 거니?","en":"Will you close?"},{"no":253,"ko":"너는 살 거니?","en":"Will you buy?"},{"no":254,"ko":"너는 가질 거니?","en":"Will you have?"},{"no":255,"ko":"너는 방문할 거니?","en":"Will you visit?"},{"no":256,"ko":"너는 시작할 거니?","en":"Will you start?"},{"no":257,"ko":"너는 끝낼 거니?","en":"Will you finish?"},{"no":258,"ko":"너는 만날 거니?","en":"Will you meet?"},{"no":259,"ko":"너는 가르칠 거니?","en":"Will you teach?"},{"no":260,"ko":"너는 배울 거니?","en":"Will you learn?"}]},{"day":14,"items":[{"no":261,"ko":"너는 결혼하지 않을 거니?","en":"Won't you marry?"},{"no":262,"ko":"너는 그 여자랑 결혼하지 않을 거니?","en":"Won't you marry the girl?"},{"no":263,"ko":"너는 돕지 않을 거니?","en":"Won't you help?"},{"no":264,"ko":"너는 그 남자를 돕지 않을 거니?","en":"Won't you help the man?"},{"no":265,"ko":"너는 부르지 않을 거니?","en":"Won't you sing?"},{"no":266,"ko":"너는 노래를 부르지 않을 거니?","en":"Won't you sing a song?"},{"no":267,"ko":"너는 전화하지 않을 거니?","en":"Won't you call?"},{"no":268,"ko":"너는 경찰관에게 전화하지 않을 거니?","en":"Won't you call the police?"},{"no":269,"ko":"너는 시도해 보지 않을 거니?","en":"Won't you try?"},{"no":270,"ko":"너는 그 일을 시도해 보지 않을 거니?","en":"Won't you try the job?"},{"no":271,"ko":"너는 고르지 않을 거니?","en":"Won't you pick?"},{"no":272,"ko":"너는 그 초콜릿을 고르지 않을 거니?","en":"Won't you pick the chocolate?"},{"no":273,"ko":"너는 움직이지 않을 거니?","en":"Won't you move?"},{"no":274,"ko":"너는 책상을 옮기지 않을 거니?","en":"Won't you move the desk?"},{"no":275,"ko":"너는 체크하지 않을 거니?","en":"Won't you check?"},{"no":276,"ko":"너는 그 명단을 체크하지 않을 거니?","en":"Won't you check the list?"},{"no":277,"ko":"너는 주지 않을 거니?","en":"Won't you give?"},{"no":278,"ko":"너는 그 꽃을 주지 않을 거니?","en":"Won't you give the flower?"},{"no":279,"ko":"너는 놓지 않을 거니?","en":"Won't you put?"},{"no":280,"ko":"너는 그 가방을 놓지 않을 거니?","en":"Won't you put the bag?"}]},{"day":15,"items":[{"no":281,"ko":"나는 (진짜) 아침 먹었거든.","en":"I did have breakfast."},{"no":282,"ko":"나는 (진짜) 점심 먹었거든.","en":"I did have lunch."},{"no":283,"ko":"나는 (진짜) 저녁 먹었거든.","en":"I did have dinner."},{"no":284,"ko":"나는 (진짜) 식사했거든.","en":"I did have a meal."},{"no":285,"ko":"나는 (진짜) 커피 마셨거든.","en":"I did have coffee."},{"no":286,"ko":"나는 (진짜) 산책했거든.","en":"I did have a walk."},{"no":287,"ko":"나는 (진짜) 즐거웠거든.","en":"I did have fun."},{"no":288,"ko":"나는 (진짜) 앉았거든.","en":"I did have a seat."},{"no":289,"ko":"나는 (진짜) 마셨거든.","en":"I did have a drink."},{"no":290,"ko":"나는 (진짜) 직업이 있었거든.","en":"I did have a job."},{"no":291,"ko":"나는 (진짜) 집에 갔거든.","en":"I did go home."},{"no":292,"ko":"나는 (진짜) 오늘 왔거든.","en":"I did come today."},{"no":293,"ko":"나는 (진짜) 함께 걸었거든.","en":"I did walk together."},{"no":294,"ko":"나는 (진짜) 혼자 뛰었거든.","en":"I did run alone."},{"no":295,"ko":"나는 (진짜) 다시 운전했거든.","en":"I did drive again."},{"no":296,"ko":"나는 (진짜) 여기 살았거든.","en":"I did live here."},{"no":297,"ko":"나는 (진짜) 거기 머물렀거든.","en":"I did stay there."},{"no":298,"ko":"나는 (진짜) 더 기다렸거든.","en":"I did wait more."},{"no":299,"ko":"나는 (진짜) 열심히 일했거든.","en":"I did work hard."},{"no":300,"ko":"나는 (진짜) 오늘 밤 잤거든.","en":"I did sleep tonight."}]},{"day":16,"items":[{"no":301,"ko":"나는 책을 받지 않았어.","en":"I didn't take a book."},{"no":302,"ko":"나는 택시를 타지 않았어.","en":"I didn't take a taxi."},{"no":303,"ko":"나는 시험을 치르지 않았어.","en":"I didn't take a test."},{"no":304,"ko":"나는 사진을 찍지 않았어.","en":"I didn't take a photo."},{"no":305,"ko":"나는 샤워를 하지 않았어.","en":"I didn't take a shower."},{"no":306,"ko":"나는 잠시 쉬지 않았어.","en":"I didn't take a break."},{"no":307,"ko":"나는 낮잠을 자지 않았어.","en":"I didn't take a nap."},{"no":308,"ko":"나는 여행을 가지 않았어.","en":"I didn't take a trip."},{"no":309,"ko":"나는 수업을 받지 않았어.","en":"I didn't take a lesson."},{"no":310,"ko":"나는 운동을 하지 않았어.","en":"I didn't take exercise."},{"no":311,"ko":"나는 아침을 먹지 않았어.","en":"I didn't have breakfast."},{"no":312,"ko":"나는 점심을 먹지 않았어.","en":"I didn't have lunch."},{"no":313,"ko":"나는 저녁을 먹지 않았어.","en":"I didn't have dinner."},{"no":314,"ko":"나는 식사를 하지 않았어.","en":"I didn't have a meal."},{"no":315,"ko":"나는 커피를 마시지 않았어.","en":"I didn't have coffee."},{"no":316,"ko":"나는 산책을 하지 않았어.","en":"I didn't have a walk."},{"no":317,"ko":"나는 즐겁지 않았어.","en":"I didn't have fun."},{"no":318,"ko":"나는 앉지 않았어.","en":"I didn't have a seat."},{"no":319,"ko":"나는 마시지 않았어.","en":"I didn't have a drink."},{"no":320,"ko":"나는 직업이 없었어.","en":"I didn't have a job."}]},{"day":17,"items":[{"no":321,"ko":"너는 책을 받았니?","en":"Did you get a book?"},{"no":322,"ko":"너는 전화를 받았니?","en":"Did you get a call?"},{"no":323,"ko":"너는 이메일을 받았니?","en":"Did you get an email?"},{"no":324,"ko":"너는 취직했니?","en":"Did you get a job?"},{"no":325,"ko":"너는 표 샀니?","en":"Did you get a ticket?"},{"no":326,"ko":"너는 감기 걸렸니?","en":"Did you get a cold?"},{"no":327,"ko":"너는 화났었니?","en":"Did you get angry?"},{"no":328,"ko":"너는 준비를 했니?","en":"Did you get ready?"},{"no":329,"ko":"너는 피곤했니?","en":"Did you get tired?"},{"no":330,"ko":"너는 배고팠니?","en":"Did you get hungry?"},{"no":331,"ko":"너는 책을 받았니?","en":"Did you take a book?"},{"no":332,"ko":"너는 택시를 탔니?","en":"Did you take a taxi?"},{"no":333,"ko":"너는 시험을 치렀니?","en":"Did you take a test?"},{"no":334,"ko":"너는 사진을 찍었니?","en":"Did you take a photo?"},{"no":335,"ko":"너는 샤워를 했니?","en":"Did you take a shower?"},{"no":336,"ko":"너는 잠시 쉬었니?","en":"Did you take a break?"},{"no":337,"ko":"너는 낮잠을 잤니?","en":"Did you take a nap?"},{"no":338,"ko":"너는 여행을 갔니?","en":"Did you take a trip?"},{"no":339,"ko":"너는 수업을 받았니?","en":"Did you take a lesson?"},{"no":340,"ko":"너는 운동을 했니?","en":"Did you take exercise?"}]},{"day":18,"items":[{"no":341,"ko":"너는 학교를 등교했니?","en":"Did you go to school?"},{"no":342,"ko":"너는 학교를 등교하지 않았니?","en":"Didn't you go to school?"},{"no":343,"ko":"너는 예배를 드렸니?","en":"Did you go to church?"},{"no":344,"ko":"너는 예배를 드리지 않았니?","en":"Didn't you go to church?"},{"no":345,"ko":"너는 영화를 보러 갔니?","en":"Did you go to the movies?"},{"no":346,"ko":"너는 영화를 보러 가지 않았니?","en":"Didn't you go to the movies?"},{"no":347,"ko":"너는 병원에 갔니?","en":"Did you go to the doctor?"},{"no":348,"ko":"너는 병원에 가지 않았니?","en":"Didn't you go to the doctor?"},{"no":349,"ko":"너는 집에 갔니?","en":"Did you go home?"},{"no":350,"ko":"너는 집에 가지 않았니?","en":"Didn't you go home?"},{"no":351,"ko":"너는 외국에 갔었니?","en":"Did you go abroad?"},{"no":352,"ko":"너는 외국에 안 갔었니?","en":"Didn't you go abroad?"},{"no":353,"ko":"너는 자러 갔었니?","en":"Did you go to bed?"},{"no":354,"ko":"너는 자러 안 갔었니?","en":"Didn't you go to bed?"},{"no":355,"ko":"너는 낚시하러 갔었니?","en":"Did you go fishing?"},{"no":356,"ko":"너는 낚시하러 안 갔었니?","en":"Didn't you go fishing?"},{"no":357,"ko":"너는 쇼핑하러 갔었니?","en":"Did you go shopping?"},{"no":358,"ko":"너는 쇼핑하러 안 갔었니?","en":"Didn't you go shopping?"},{"no":359,"ko":"너는 캠핑하러 갔었니?","en":"Did you go camping?"},{"no":360,"ko":"너는 캠핑하러 안 갔었니?","en":"Didn't you go camping?"}]},{"day":19,"items":[{"no":361,"ko":"나는 어제는 갈 수 있었어.","en":"I could go yesterday."},{"no":362,"ko":"나는 내일은 갈 수도 있어.","en":"I could go tomorrow."},{"no":363,"ko":"나는 어제는 올 수 있었어.","en":"I could come yesterday."},{"no":364,"ko":"나는 내일은 올 수도 있어.","en":"I could come tomorrow."},{"no":365,"ko":"나는 그때는 걸을 수 있었어.","en":"I could walk then."},{"no":366,"ko":"나는 곧 걸을 수도 있어.","en":"I could walk soon."},{"no":367,"ko":"나는 그때는 뛸 수 있었어.","en":"I could run then."},{"no":368,"ko":"나는 곧 뛸 수도 있어.","en":"I could run soon."},{"no":369,"ko":"나는 전에는 운전할 수 있었어.","en":"I could drive before."},{"no":370,"ko":"나는 나중에는 운전할 수도 있어.","en":"I could drive later."},{"no":371,"ko":"나는 전에는 살 수 있었어.","en":"I could live before."},{"no":372,"ko":"나는 나중에는 살 수도 있어.","en":"I could live later."},{"no":373,"ko":"나는 이틀 전에는 머물 수 있었어.","en":"I could stay two days ago."},{"no":374,"ko":"나는 이틀 후에는 머물 수도 있어.","en":"I could stay two days later."},{"no":375,"ko":"나는 사흘 전에는 기다릴 수 있었어.","en":"I could wait three days ago."},{"no":376,"ko":"나는 사흘 후에는 기다릴 수도 있어.","en":"I could wait three days later."},{"no":377,"ko":"나는 2주 전에는 일할 수 있었어.","en":"I could work two weeks ago."},{"no":378,"ko":"나는 2주 후에는 일할 수도 있어.","en":"I could work two weeks later."},{"no":379,"ko":"나는 3주 전에는 잘 수 있었어.","en":"I could sleep three weeks ago."},{"no":380,"ko":"나는 3주 후에는 잘 수도 있어.","en":"I could sleep three weeks later."}]},{"day":20,"items":[{"no":381,"ko":"나는 세수할 수 없었어.","en":"I couldn't wash my face."},{"no":382,"ko":"나는 어제는 세수할 수 없었어.","en":"I couldn't wash my face yesterday."},{"no":383,"ko":"나는 커피를 만들 수 없었어.","en":"I couldn't make coffee."},{"no":384,"ko":"나는 어제는 커피를 만들 수 없었어.","en":"I couldn't make coffee yesterday."},{"no":385,"ko":"나는 아침 먹을 수 없었어.","en":"I couldn't eat breakfast."},{"no":386,"ko":"나는 그때는 아침 먹을 수 없었어.","en":"I couldn't eat breakfast then."},{"no":387,"ko":"나는 주스 마실 수 없었어.","en":"I couldn't drink juice."},{"no":388,"ko":"나는 그때는 주스 마실 수 없었어.","en":"I couldn't drink juice then."},{"no":389,"ko":"나는 방을 청소할 수 없었어.","en":"I couldn't clean the room."},{"no":390,"ko":"나는 전에는 방을 청소할 수 없었어.","en":"I couldn't clean the room before."},{"no":391,"ko":"나는 책을 읽을 수 없었어.","en":"I couldn't read the book."},{"no":392,"ko":"나는 전에는 책을 읽을 수 없었어.","en":"I couldn't read the book before."},{"no":393,"ko":"나는 편지 쓸 수 없었어.","en":"I couldn't write a letter."},{"no":394,"ko":"나는 5일 전에는 편지 쓸 수 없었어.","en":"I couldn't write a letter five days ago."},{"no":395,"ko":"나는 영어 공부할 수 없었어.","en":"I couldn't study English."},{"no":396,"ko":"나는 10일 전에는 영어 공부할 수 없었어.","en":"I couldn't study English ten days ago."},{"no":397,"ko":"나는 TV 볼 수 없었어.","en":"I couldn't watch TV."},{"no":398,"ko":"나는 5주 전에는 TV 볼 수 없었어.","en":"I couldn't watch TV five weeks ago."},{"no":399,"ko":"나는 테니스 칠 수 없었어.","en":"I couldn't play tennis."},{"no":400,"ko":"나는 10주 전에는 테니스 칠 수 없었어.","en":"I couldn't play tennis ten weeks ago."}]},{"day":21,"items":[{"no":401,"ko":"너 내 차를 세차할 수 있어?","en":"Can you wash my car?"},{"no":402,"ko":"제 차 세차해 주시겠어요?","en":"Could you wash my car?"},{"no":403,"ko":"너 (마시는) 차 탈 줄 알아?","en":"Can you make tea?"},{"no":404,"ko":"(마시는) 차 타 주시겠어요?","en":"Could you make tea?"},{"no":405,"ko":"너 침실 청소할 수 있어?","en":"Can you clean the bedroom?"},{"no":406,"ko":"침실을 청소해 주시겠어요?","en":"Could you clean the bedroom?"},{"no":407,"ko":"너 피아노 칠 수 있어?","en":"Can you play the piano?"},{"no":408,"ko":"피아노 쳐 주시겠어요?","en":"Could you play the piano?"},{"no":409,"ko":"너 주소 쓸 수 있어?","en":"Can you write address?"},{"no":410,"ko":"주소 써 주시겠어요?","en":"Could you write address?"},{"no":411,"ko":"너 오늘 올 수 있니?","en":"Can you come today?"},{"no":412,"ko":"오늘 와 주시겠어요?","en":"Could you come today?"},{"no":413,"ko":"너 함께 걸을 수 있니?","en":"Can you walk together?"},{"no":414,"ko":"함께 걸어 주시겠어요?","en":"Could you walk together?"},{"no":415,"ko":"너 다시 운전할 수 있니?","en":"Can you drive again?"},{"no":416,"ko":"다시 운전해 주시겠어요?","en":"Could you drive again?"},{"no":417,"ko":"너 거기 머물 수 있니?","en":"Can you stay there?"},{"no":418,"ko":"거기 머물러 주시겠어요?","en":"Could you stay there?"},{"no":419,"ko":"너 열심히 일할 수 있니?","en":"Can you work hard?"},{"no":420,"ko":"열심히 일해 주시겠어요?","en":"Could you work hard?"}]},{"day":22,"items":[{"no":421,"ko":"나는 매일 밤 가곤 했었어.","en":"I would go every night."},{"no":422,"ko":"나는 이번 달에는 (아마) 갈 거야.","en":"I would go this month."},{"no":423,"ko":"나는 매일 밤 오곤 했었어.","en":"I would come every night."},{"no":424,"ko":"나는 이번 달에는 (아마) 올 거야.","en":"I would come this month."},{"no":425,"ko":"나는 매일 걷곤 했었어.","en":"I would walk every day."},{"no":426,"ko":"나는 금년에는 (아마) 걸을 거야.","en":"I would walk this year."},{"no":427,"ko":"나는 매일 뛰곤 했었어.","en":"I would run every day."},{"no":428,"ko":"나는 금년에는 (아마) 뛸 거야.","en":"I would run this year."},{"no":429,"ko":"나는 매달 운전하곤 했었어.","en":"I would drive every month."},{"no":430,"ko":"나는 이번 여름에는 (아마) 운전할 거야.","en":"I would drive this summer."},{"no":431,"ko":"나는 매달 살곤 했었어.","en":"I would live every month."},{"no":432,"ko":"나는 이번 여름에는 (아마) 살 거야.","en":"I would live this summer."},{"no":433,"ko":"나는 매년 머물곤 했었어.","en":"I would stay every year."},{"no":434,"ko":"나는 내년에는 (아마) 머물 거야.","en":"I would stay next year."},{"no":435,"ko":"나는 매년 기다리곤 했었어.","en":"I would wait every year."},{"no":436,"ko":"나는 내년에는 (아마) 기다릴 거야.","en":"I would wait next year."},{"no":437,"ko":"나는 매주 일하곤 했었어.","en":"I would work every week."},{"no":438,"ko":"나는 다음 주에는 (아마) 일할 거야.","en":"I would work next week."},{"no":439,"ko":"나는 매주 자곤 했었어.","en":"I would sleep every week."},{"no":440,"ko":"나는 다음 주에는 (아마) 잘 거야.","en":"I would sleep next week."}]},{"day":23,"items":[{"no":441,"ko":"나는 문을 열지 않을 거야.","en":"I won't open the door."},{"no":442,"ko":"나는 (앞으로) 그 문을 열지 않을 거야.","en":"I wouldn't open the door."},{"no":443,"ko":"나는 창문을 닫지 않을 거야.","en":"I won't close the window."},{"no":444,"ko":"나는 (앞으로) 그 창문을 닫지 않을 거야.","en":"I wouldn't close the window."},{"no":445,"ko":"나는 그 티켓을 사지 않을 거야.","en":"I won't buy the ticket."},{"no":446,"ko":"나는 (앞으로) 그 티켓을 사지 않을 거야.","en":"I wouldn't buy the ticket."},{"no":447,"ko":"나는 파티를 가지지 않을 거야. (열지 않을 거야)","en":"I won't have a party."},{"no":448,"ko":"나는 (앞으로) 파티를 가지지 않을 거야. (열지 않을 거야)","en":"I wouldn't have a party."},{"no":449,"ko":"나는 그 집을 방문하지 않을 거야.","en":"I won't visit the house."},{"no":450,"ko":"나는 (앞으로) 그 집을 방문하지 않을 거야.","en":"I wouldn't visit the house."},{"no":451,"ko":"나는 그 시험을 시작하지 않을 거야.","en":"I won't start the test."},{"no":452,"ko":"나는 (앞으로) 그 시험을 시작하지 않을 거야.","en":"I wouldn't start the test."},{"no":453,"ko":"나는 숙제를 끝내지 않을 거야.","en":"I won't finish homework."},{"no":454,"ko":"나는 (앞으로) 숙제를 끝내지 않을 거야.","en":"I wouldn't finish homework."},{"no":455,"ko":"나는 그 소년을 만나지 않을 거야.","en":"I won't meet the boy."},{"no":456,"ko":"나는 (앞으로) 그 소년을 만나지 않을 거야.","en":"I wouldn't meet the boy."},{"no":457,"ko":"나는 그 개를 가르치지 않을 거야.","en":"I won't teach the dog."},{"no":458,"ko":"나는 (앞으로) 그 개를 가르치지 않을 거야.","en":"I wouldn't teach the dog."},{"no":459,"ko":"나는 그 언어를 배우지 않을 거야.","en":"I won't learn the language."},{"no":460,"ko":"나는 (앞으로) 그 언어를 배우지 않을 거야.","en":"I wouldn't learn the language."}]},{"day":24,"items":[{"no":461,"ko":"너는 그녀와 결혼할 거니?","en":"Will you marry the girl?"},{"no":462,"ko":"그녀와 결혼해 주시겠어요?","en":"Would you marry the girl?"},{"no":463,"ko":"너는 그 남자를 도울 거니?","en":"Will you help the man?"},{"no":464,"ko":"그 남자를 도와주시겠어요?","en":"Would you help the man?"},{"no":465,"ko":"너는 노래를 부를 거니?","en":"Will you sing a song?"},{"no":466,"ko":"노래를 불러 주시겠어요?","en":"Would you sing a song?"},{"no":467,"ko":"너는 경찰관에게 전화할 거니?","en":"Will you call the police?"},{"no":468,"ko":"경찰관에게 전화해 주시겠어요?","en":"Would you call the police?"},{"no":469,"ko":"너는 그 일을 시도해 볼 거니?","en":"Will you try the job?"},{"no":470,"ko":"그 일 시도해 보시겠어요?","en":"Would you try the job?"},{"no":471,"ko":"너는 그 초콜릿을 고를 거니?","en":"Will you pick the chocolate?"},{"no":472,"ko":"초콜릿을 골라 주시겠어요?","en":"Would you pick the chocolate?"},{"no":473,"ko":"너는 그 책상을 옮길 거니?","en":"Will you move the desk?"},{"no":474,"ko":"그 책상을 옮겨 주시겠어요?","en":"Would you move the desk?"},{"no":475,"ko":"너는 그 명단을 체크할 거니?","en":"Will you check the list?"},{"no":476,"ko":"그 명단을 체크해 주시겠어요?","en":"Would you check the list?"},{"no":477,"ko":"너는 그 꽃을 줄 거니?","en":"Will you give the flower?"},{"no":478,"ko":"그 꽃을 주시겠어요?","en":"Would you give the flower?"},{"no":479,"ko":"너는 그 가방을 놓을 거니?","en":"Will you put the bag?"},{"no":480,"ko":"그 가방을 놓으시겠어요?","en":"Would you put the bag?"}]},{"day":25,"items":[{"no":481,"ko":"너는 (반드시) 자러 가야 해.","en":"You must go to bed."},{"no":482,"ko":"너는 (반드시) 자러 가면 안 돼.","en":"You must not go to bed."},{"no":483,"ko":"너는 (반드시) 여기로 와야 해.","en":"You must come here."},{"no":484,"ko":"너는 (반드시) 여기로 오면 안 돼.","en":"You must not come here."},{"no":485,"ko":"너는 (반드시) 앉아야 해.","en":"You must have a seat."},{"no":486,"ko":"너는 (반드시) 앉으면 안 돼.","en":"You must not have a seat."},{"no":487,"ko":"너는 (반드시) 진찰받아야 해.","en":"You must see the doctor."},{"no":488,"ko":"너는 (반드시) 진찰받으면 안 돼.","en":"You must not see the doctor."},{"no":489,"ko":"너는 (반드시) 이야기를 들어야 해.","en":"You must hear the story."},{"no":490,"ko":"너는 (반드시) 이야기를 들으면 안 돼.","en":"You must not hear the story."},{"no":491,"ko":"너는 (반드시) 거기서 멈춰야 해.","en":"You must stop there."},{"no":492,"ko":"너는 (반드시) 거기서 멈추면 안 돼.","en":"You must not stop there."},{"no":493,"ko":"너는 (반드시) 다시 앉아야 해.","en":"You must sit again."},{"no":494,"ko":"너는 (반드시) 다시 앉으면 안 돼.","en":"You must not sit again."},{"no":495,"ko":"너는 (반드시) 혼자 서 있어야 해.","en":"You must stand alone."},{"no":496,"ko":"너는 (반드시) 혼자 서 있으면 안 돼.","en":"You must not stand alone."},{"no":497,"ko":"너는 (반드시) 같이 만나야 해.","en":"You must meet together."},{"no":498,"ko":"너는 (반드시) 같이 만나면 안 돼.","en":"You must not meet together."},{"no":499,"ko":"너는 (반드시) 더 해 봐야 해.","en":"You must try more."},{"no":500,"ko":"너는 (반드시) 더 해 보면 안 돼.","en":"You must not try more."}]},{"day":26,"items":[{"no":501,"ko":"너는 혼자 공부해야 해.","en":"You should study alone."},{"no":502,"ko":"너는 혼자 공부해서는 안 돼.","en":"You shouldn't study alone."},{"no":503,"ko":"너는 다시 만들어야 해.","en":"You should make again."},{"no":504,"ko":"너는 다시 만들어서는 안 돼.","en":"You shouldn't make again."},{"no":505,"ko":"너는 여기서 읽어야 해.","en":"You should read here."},{"no":506,"ko":"너는 여기서 읽어서는 안 돼.","en":"You shouldn't read here."},{"no":507,"ko":"너는 더 써야 해.","en":"You should write more."},{"no":508,"ko":"너는 더 써서는 안 돼.","en":"You shouldn't write more."},{"no":509,"ko":"너는 같이 머물러야 해.","en":"You should stay together."},{"no":510,"ko":"너는 같이 머물러서는 안 돼.","en":"You shouldn't stay together."},{"no":511,"ko":"너는 숙제 체크해야 해.","en":"You should check homework."},{"no":512,"ko":"너는 숙제 체크해서는 안 돼.","en":"You shouldn't check homework."},{"no":513,"ko":"너는 오늘 밤 씻어야 해.","en":"You should wash tonight."},{"no":514,"ko":"너는 오늘 밤 씻어서는 안 돼.","en":"You shouldn't wash tonight."},{"no":515,"ko":"너는 오늘 기다려야 해.","en":"You should wait today."},{"no":516,"ko":"너는 오늘 기다려서는 안 돼.","en":"You shouldn't wait today."},{"no":517,"ko":"너는 곧 일해야 해.","en":"You should work soon."},{"no":518,"ko":"너는 곧 일해서는 안 돼.","en":"You shouldn't work soon."},{"no":519,"ko":"너는 나중에 운전해야 해.","en":"You should drive later."},{"no":520,"ko":"너는 나중에 운전해서는 안 돼.","en":"You shouldn't drive later."}]},{"day":27,"items":[{"no":521,"ko":"너는 차를 타야 해.","en":"You have to take a car."},{"no":522,"ko":"너는 차를 탈 필요가 있어.","en":"You need to take a car."},{"no":523,"ko":"너는 시험을 치러야 해.","en":"You have to take an exam."},{"no":524,"ko":"너는 시험을 치를 필요가 있어.","en":"You need to take an exam."},{"no":525,"ko":"너는 사진 찍어야 해.","en":"You have to take a picture."},{"no":526,"ko":"너는 사진 찍을 필요가 있어.","en":"You need to take a picture."},{"no":527,"ko":"너는 목욕해야 해.","en":"You have to take a bath."},{"no":528,"ko":"너는 목욕할 필요가 있어.","en":"You need to take a bath."},{"no":529,"ko":"너는 쉬어야 해.","en":"You have to take a rest."},{"no":530,"ko":"너는 쉴 필요가 있어.","en":"You need to take a rest."},{"no":531,"ko":"너는 수업을 들어야 해.","en":"You have to take a class."},{"no":532,"ko":"너는 수업을 들을 필요가 있어.","en":"You need to take a class."},{"no":533,"ko":"너는 산책해야 해.","en":"You have to take a walk."},{"no":534,"ko":"너는 산책할 필요가 있어.","en":"You need to take a walk."},{"no":535,"ko":"너는 비행기 타야 해.","en":"You have to take an airplane."},{"no":536,"ko":"너는 비행기 탈 필요가 있어.","en":"You need to take an airplane."},{"no":537,"ko":"너는 약을 복용해야 해.","en":"You have to take a medicine."},{"no":538,"ko":"너는 약을 복용할 필요가 있어.","en":"You need to take a medicine."},{"no":539,"ko":"너는 휴가를 떠나야 해.","en":"You have to take a holiday."},{"no":540,"ko":"너는 휴가를 떠날 필요가 있어.","en":"You need to take a holiday."}]},{"day":28,"items":[{"no":541,"ko":"너는 할인을 받지 않아도 돼.","en":"You don't have to get a discount."},{"no":542,"ko":"너는 할인 받을 필요가 없어.","en":"You don't need to get a discount."},{"no":543,"ko":"너는 택시를 타지 않아도 돼.","en":"You don't have to get a taxi."},{"no":544,"ko":"너는 택시를 탈 필요가 없어.","en":"You don't need to get a taxi."},{"no":545,"ko":"너는 책을 사지 않아도 돼.","en":"You don't have to get a book."},{"no":546,"ko":"너는 책을 살 필요가 없어.","en":"You don't need to get a book."},{"no":547,"ko":"너는 차를 사지 않아도 돼.","en":"You don't have to get a car."},{"no":548,"ko":"너는 차를 살 필요가 없어.","en":"You don't need to get a car."},{"no":549,"ko":"너는 자리를 잡지 않아도 돼.","en":"You don't have to get a seat."},{"no":550,"ko":"너는 자리를 잡을 필요가 없어.","en":"You don't need to get a seat."},{"no":551,"ko":"너는 집을 구하지 않아도 돼.","en":"You don't have to get a house."},{"no":552,"ko":"너는 집을 구할 필요가 없어.","en":"You don't need to get a house."},{"no":553,"ko":"너는 휴식을 취하지 않아도 돼.","en":"You don't have to get a rest."},{"no":554,"ko":"너는 휴식을 취할 필요가 없어.","en":"You don't need to get a rest."},{"no":555,"ko":"너는 테스트를 받지 않아도 돼.","en":"You don't have to get a test."},{"no":556,"ko":"너는 테스트를 받을 필요가 없어.","en":"You don't need to get a test."},{"no":557,"ko":"너는 비자를 받지 않아도 돼.","en":"You don't have to get a visa."},{"no":558,"ko":"너는 비자를 받을 필요가 없어.","en":"You don't need to get a visa."},{"no":559,"ko":"너는 메시지를 받지 않아도 돼.","en":"You don't have to get a message."},{"no":560,"ko":"너는 메시지를 받을 필요가 없어.","en":"You don't need to get a message."}]},{"day":29,"items":[{"no":561,"ko":"너는 소풍하러 가야 해?","en":"Do you have to go on a picnic?"},{"no":562,"ko":"너는 소풍하러 가는 게 필요해?","en":"Do you need to go on a picnic?"},{"no":563,"ko":"너는 데이트하러 가야 해?","en":"Do you have to go on a date?"},{"no":564,"ko":"너는 데이트하러 가는 게 필요해?","en":"Do you need to go on a date?"},{"no":565,"ko":"너는 여행하러 가야 해?","en":"Do you have to go on a trip?"},{"no":566,"ko":"너는 여행하러 가는 게 필요해?","en":"Do you need to go on a trip?"},{"no":567,"ko":"너는 신혼여행 가야 해?","en":"Do you have to go on a honeymoon?"},{"no":568,"ko":"너는 신혼여행 하러 가는 게 필요해?","en":"Do you need to go on a honeymoon?"},{"no":569,"ko":"너는 다이어트 시작해야 해?","en":"Do you have to go on a diet?"},{"no":570,"ko":"너는 다이어트 시작하는 게 필요해?","en":"Do you need to go on a diet?"},{"no":571,"ko":"너는 돈 벌어야 해?","en":"Do you have to make money?"},{"no":572,"ko":"너는 돈 버는 게 필요해?","en":"Do you need to make money?"},{"no":573,"ko":"너는 약속해야 해?","en":"Do you have to make a promise?"},{"no":574,"ko":"너는 약속하는 게 필요해?","en":"Do you need to make a promise?"},{"no":575,"ko":"너는 생계를 꾸려야 해?","en":"Do you have to make a living?"},{"no":576,"ko":"너는 생계를 꾸리는 게 필요해?","en":"Do you need to make a living?"},{"no":577,"ko":"너는 명단을 작성해야 해?","en":"Do you have to make a list?"},{"no":578,"ko":"너는 명단을 작성하는 게 필요해?","en":"Do you need to make a list?"},{"no":579,"ko":"너는 계획 세워야 해?","en":"Do you have to make a plan?"},{"no":580,"ko":"너는 계획 세우는 게 필요해?","en":"Do you need to make a plan?"}]},{"day":30,"items":[{"no":581,"ko":"나는 문제가 생긴 건지도 몰라.","en":"I may have a problem."},{"no":582,"ko":"나는 (어쩌면) 문제가 생긴 건지도 몰라.","en":"I might have a problem."},{"no":583,"ko":"나 전혀 모르는지도 몰라.","en":"I may have no idea."},{"no":584,"ko":"나 (어쩌면) 전혀 모르는지도 몰라.","en":"I might have no idea."},{"no":585,"ko":"나 시간이 없는지도 몰라.","en":"I may have no time."},{"no":586,"ko":"나 (어쩌면) 시간이 없는지도 몰라.","en":"I might have no time."},{"no":587,"ko":"나 회의 있는지도 몰라.","en":"I may have a meeting."},{"no":588,"ko":"나 (어쩌면) 회의 있는지도 몰라.","en":"I might have a meeting."},{"no":589,"ko":"나 감기 걸린 건지도 몰라.","en":"I may have a cold."},{"no":590,"ko":"나 (어쩌면) 감기 걸린 건지도 몰라.","en":"I might have a cold."},{"no":591,"ko":"그 남자 빨래하는지도 몰라.","en":"The man may do the laundry."},{"no":592,"ko":"그 남자 (어쩌면) 빨래하는지도 몰라.","en":"The man might do the laundry."},{"no":593,"ko":"그 소년 운동하는지도 몰라.","en":"The boy may do exercise."},{"no":594,"ko":"그 소년 (어쩌면) 운동하는지도 몰라.","en":"The boy might do exercise."},{"no":595,"ko":"그 소녀 숙제하는지도 몰라.","en":"The girl may do homework."},{"no":596,"ko":"그 소녀 (어쩌면) 숙제하는지도 몰라.","en":"The girl might do homework."},{"no":597,"ko":"그가 사업하는지도 몰라.","en":"He may do business."},{"no":598,"ko":"그가 (어쩌면) 사업하는지도 몰라.","en":"He might do business."},{"no":599,"ko":"그 여자 리포트 쓰는지도 몰라.","en":"She may do a paper."},{"no":600,"ko":"그 여자 (어쩌면) 리포트 쓰는지도 몰라.","en":"She might do a paper."}]}];
+const $=id=>document.getElementById(id);
+const today=new Date();today.setHours(0,0,0,0);
+const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+let previewDay=null,viewMode='ko',calendarDate=new Date(today.getFullYear(),today.getMonth(),1);
+function readRecords(){try{return JSON.parse(localStorage.getItem('ilbbangSeq600Records')||'{}')}catch(e){return {}}}
+function startDate(){let v=$('startDate').value||localStorage.getItem('ilbbangSeq600Start')||iso(today);return new Date(v+'T00:00:00')}
+function currentDay(){if(previewDay!==null)return previewDay;let diff=Math.floor((today-startDate())/86400000)+1;return Math.max(1,Math.min(30,diff))}
+function key(date,day){return date+'|'+day}
+function selectedDate(){return previewDay===null?iso(today):null}
+let listMode='all';
+function readMap(name){try{return JSON.parse(localStorage.getItem(name)||'{}')}catch(e){return {}}}
+function writeMap(name,obj){localStorage.setItem(name,JSON.stringify(obj))}
+const REWARD_KEY='ilbbangSeq600StarAwards',REDEEM_KEY='ilbbangSeq600RewardRequests';
+const REWARDS=[{id:'snack',cost:5,title:'작은 간식 고르기',desc:'좋아하는 간식 하나를 부모님과 골라요.'},{id:'play',cost:10,title:'가족 놀이 선택권',desc:'주말에 함께 할 놀이를 직접 골라요.'},{id:'outing',cost:20,title:'특별한 가족 활동',desc:'가고 싶은 곳이나 함께 할 활동을 정해요.'}];
+function studyDates(){return [...new Set(Object.keys(readRecords()).filter(k=>readRecords()[k]===true).map(k=>k.split('|')[0]))].sort();}
+function currentStreak(){const dates=new Set(studyDates());let d=new Date(today);if(!dates.has(iso(d))){d.setDate(d.getDate()-1);if(!dates.has(iso(d)))return 0;}let n=0;while(dates.has(iso(d))){n++;d.setDate(d.getDate()-1);}return n;}
+function bestStreak(){const ds=studyDates();let best=0,run=0,prev=null;for(const value of ds){const d=new Date(value+'T00:00:00');if(prev){const gap=(d-prev)/86400000;run=gap===1?run+1:1;}else run=1;best=Math.max(best,run);prev=d;}return best;}
+function starAwards(){return readMap(REWARD_KEY)}
+function redeemedRequests(){return readMap(REDEEM_KEY)}
+function availableStars(){const awards=starAwards(),spent=redeemedRequests();return Object.keys(awards).filter(k=>awards[k]).length-Object.values(spent).filter(x=>x&&x.status==='approved').reduce((a,x)=>a+(Number(x.cost)||0),0);}
+function awardToday(){const k=key(iso(today),currentDay()),awards=starAwards();if(!awards[k]){awards[k]=true;writeMap(REWARD_KEY,awards);}}
+function renderRewards(){
+ const streak=currentStreak(),best=bestStreak(),balance=Math.max(0,availableStars());
+ $('starBalance').textContent=balance;$('streakCount').textContent=streak;
+ $('starNote').textContent=readRecords()[key(iso(today),currentDay())]?'오늘의 별을 받았어요!':'오늘 학습을 완료하면 별 1개를 받아요.';
+ $('streakNote').textContent=streak>=7?'대단해요! 7일 연속 학습을 달성했어요.':streak>0?`다음 7일 배지까지 ${7-streak}일 남았어요.`:'오늘 공부를 시작해 연속 기록을 만들어 봐요!';
+ const milestones=[{n:1,label:'첫걸음 배지 🐣'},{n:3,label:'3일 꾸준 배지 🌱'},{n:7,label:'일주일 배지 🏅'},{n:14,label:'2주 도전 배지 🏆'},{n:30,label:'30일 완주 배지 👑'}];
+ $('badgeList').innerHTML=milestones.map(b=>`<span class="${best>=b.n?'earned-badge':'locked-badge'}">${best>=b.n?'✓ ':'🔒 '}${b.label}</span>`).join('');
+ const requests=redeemedRequests();
+ $('rewardOptions').innerHTML=REWARDS.map(r=>{const pending=Object.values(requests).some(x=>x&&x.rewardId===r.id&&x.status==='pending');return `<div class="reward-option"><div class="reward-desc"><strong>${r.title}</strong><br><span class="small">${r.desc} · ${r.cost}⭐</span></div><button data-reward="${r.id}" ${balance<r.cost||pending?'disabled':''}>${pending?'요청 대기 중':'보상 요청'}</button></div>`}).join('');
+ const pending=Object.values(requests).filter(x=>x&&x.status==='pending');
+ $('rewardStatus').innerHTML=pending.length?`부모님이 실제 보상을 준 뒤 아래 버튼을 눌러 확인해 주세요.<br>${pending.map(x=>`<button class="approve-reward" data-approve="${Object.keys(requests).find(k=>requests[k]===x)}">${x.title} · ${x.cost}⭐ 부모님 확인</button>`).join(' ')}`:'보상은 별을 모아 부모님과 함께 확인하고 받아요. 별은 부모님 확인 후 차감돼요.';
+}
+
+// 무료 기기 내장 TTS 사용. 영어(미국) 음성 중 남성으로 추정되는 음성을 자동 우선 선택.
+let availableVoices=[];
+function isEnglishVoice(v){return /^en(-|_)/i.test(v.lang||'')}
+function isLikelyMale(v){return /(david|mark|guy|christopher|eric|brian|matthew|aaron|daniel|james|alex|fred|tom|oliver|arthur|george)/i.test(v.name||'') || /male|masculine/i.test(v.name||'')}
+function preferredVoice(){
+ const us=availableVoices.filter(v=>/^en-US$/i.test(v.lang));
+ return us.find(isLikelyMale)||us.find(v=>/google|microsoft|enhanced|neural/i.test(v.name))||us[0]||availableVoices.find(isEnglishVoice)||null;
+}
+function populateVoices(){
+ if(!('speechSynthesis' in window))return;
+ availableVoices=window.speechSynthesis.getVoices().filter(isEnglishVoice);
+}
+function speakEnglish(text){
+ if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요. 크롬에서 열어 주세요.');return;}
+ populateVoices();window.speechSynthesis.cancel();
+ const utterance=new SpeechSynthesisUtterance(text);
+ utterance.lang='en-US';
+ utterance.rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
+ utterance.pitch=0.92;
+ const voice=preferredVoice();if(voice)utterance.voice=voice;
+ window.speechSynthesis.speak(utterance);
+}
+// 녹음만 제공: 음성 인식 및 원문 일치율 비교 기능은 사용하지 않습니다.
+let activeRecorder=null, activeStream=null, activeNo=null, activeChunks=[], activeAudioUrl=null;
+function stopRecordingResources(){
+ if(activeRecorder&&activeRecorder.state!=='inactive'){try{activeRecorder.stop()}catch(e){}}
+ if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
+}
+async function startRecording(no){
+ if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){alert('이 브라우저는 녹음을 지원하지 않아요. HTTPS 주소의 크롬에서 열어 주세요.');return;}
+ if(activeNo!==null){alert('먼저 진행 중인 녹음을 마쳐 주세요.');return;}
+ try{
+  activeNo=no;activeChunks=[];
+  const box=document.getElementById('record-'+no);
+  box.className='record-result show';box.textContent='마이크를 준비하고 있어요…';
+  activeStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  activeRecorder=new MediaRecorder(activeStream);
+  activeRecorder.ondataavailable=e=>{if(e.data&&e.data.size)activeChunks.push(e.data)};
+  activeRecorder.onstop=()=>{
+   if(activeAudioUrl)URL.revokeObjectURL(activeAudioUrl);
+   const mime=activeRecorder?.mimeType||'audio/webm';
+   const blob=new Blob(activeChunks,{type:mime});
+   activeAudioUrl=URL.createObjectURL(blob);
+   const el=document.getElementById('record-'+no);
+   if(el){el.innerHTML='녹음이 끝났어요. 아래 재생 버튼을 눌러 들어보세요.';const audio=document.createElement('audio');audio.controls=true;audio.className='record-audio';audio.src=activeAudioUrl;el.appendChild(audio);}
+   if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
+   activeRecorder=null;activeNo=null;
+   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
+  };
+  activeRecorder.start();
+  box.textContent='🔴 녹음 중이에요. 다 말한 뒤 녹음 종료를 눌러 주세요.';
+  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏹ 녹음 종료';
+ }catch(err){stopRecordingResources();activeNo=null;activeRecorder=null;alert('녹음을 시작하지 못했어요. 크롬에서 마이크 권한을 허용했는지 확인해 주세요. ('+err.message+')');}
+}
+function finishRecording(){if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();}
+
+function render(){
+ const day=currentDay(),data=DATA[day-1],records=readRecords(),done=!!records[key(iso(today),day)];
+ const checked=readMap('ilbbangSeq600Checked'),review=readMap('ilbbangSeq600Review');
+ $('dayBadge').textContent=`DAY ${day} / 30`;
+ $('dateLabel').textContent=previewDay===null?today.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}):`DAY ${day} 미리보기`;
+ $('daySelect').value=String(day);
+ $('prevDay').disabled=day===1;$('nextDay').disabled=day===30;
+ const todayChecked=data.items.filter(x=>checked[x.no]).length;
+ $('progressBar').style.width=(todayChecked/data.items.length*100)+'%';
+ $('progressLabel').textContent=`오늘 문장 학습 ${todayChecked}/${data.items.length}개 완료 · DAY ${day}/30`;
+ $('showAll').classList.toggle('active',listMode==='all');
+ $('showReview').classList.toggle('active',listMode==='review');
+ const visible=data.items.filter(x=>listMode==='all'||review[x.no]);
+ $('itemCount').textContent=listMode==='all'?`${data.items.length}문장`:`복습 ${visible.length}문장`;
+ $('emptyReview').style.display=visible.length?'none':'block';
+ $('sentenceList').innerHTML=visible.map(x=>{
+  let text=viewMode==='ko'?escapeHtml(x.ko):viewMode==='en'?escapeHtml(x.en):`<div>${escapeHtml(x.ko)}</div><div class="english" style="font-size:.86em;color:#5f695e;margin-top:3px">${escapeHtml(x.en)}</div>`;
+  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">🎙 녹음</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result" id="record-${x.no}"></div></span></li>`;
+ }).join('');
+ $('koreanBtn').classList.toggle('active',viewMode==='ko');$('englishBtn').classList.toggle('active',viewMode==='en');$('bothBtn').classList.toggle('active',viewMode==='both');
+ $('markDone').disabled=previewDay!==null||done;
+ $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':'✓ 오늘 학습 완료';
+ $('undoDone').disabled=previewDay!==null||!done;
+ $('studyStatus').textContent=previewDay!==null?'미리보기 중입니다. 오늘의 DAY 화면에서 학습 기록을 저장할 수 있어요.':done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':'학습을 마친 뒤 완료 버튼을 눌러 기록하세요.';
+ renderCalendar();
+ if(previewDay===null&&readRecords()[key(iso(today),currentDay())])awardToday();
+ renderRewards();
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function renderCalendar(){
+ const y=calendarDate.getFullYear(),m=calendarDate.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate(),r=readRecords();
+ $('monthTitle').textContent=`${y}년 ${m+1}월 학습 기록`;
+ let out=['일','월','화','수','목','금','토'].map(d=>`<div class="dow">${d}</div>`).join('');
+ for(let i=0;i<first;i++)out+='<div></div>';
+ for(let d=1;d<=last;d++){let dt=new Date(y,m,d),ds=iso(dt),done=Object.keys(r).some(k=>k.startsWith(ds+'|')&&r[k]),isToday=ds===iso(today);out+=`<div class="calday ${done?'done':''} ${isToday?'today':''}"><span>${d}</span><span>${done?'✓':''}</span></div>`;}
+ $('calendar').innerHTML=out;
+}
+for(let d=1;d<=30;d++){let o=document.createElement('option');o.value=d;o.textContent=`DAY ${d}`;$('daySelect').appendChild(o);}
+$('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
+$('apply').onclick=()=>{localStorage.setItem('ilbbangSeq600Start',$('startDate').value);previewDay=null;render()};
+$('today').onclick=()=>{previewDay=null;render();window.scrollTo({top:0,behavior:'smooth'})};
+$('prevDay').onclick=()=>{previewDay=Math.max(1,currentDay()-1);render()};
+$('nextDay').onclick=()=>{previewDay=Math.min(30,currentDay()+1);render()};
+$('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
+$('koreanBtn').onclick=()=>{viewMode='ko';render()};
+$('englishBtn').onclick=()=>{viewMode='en';render()};
+$('bothBtn').onclick=()=>{viewMode='both';render()};
+$('markDone').onclick=()=>{if(previewDay!==null)return;let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday();render()};
+$('undoDone').onclick=()=>{if(previewDay!==null)return;let r=readRecords();delete r[key(iso(today),currentDay())];localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));render()};
+$('prevMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()-1,1);renderCalendar()};
+$('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+1,1);renderCalendar()};
+$('showAll').onclick=()=>{listMode='all';render()};
+$('showReview').onclick=()=>{listMode='review';render()};
+$('sentenceList').addEventListener('change',e=>{
+ const no=e.target.getAttribute('data-check');if(!no)return;
+ let m=readMap('ilbbangSeq600Checked');if(e.target.checked)m[no]=true;else delete m[no];writeMap('ilbbangSeq600Checked',m);render();
+});
+
+// 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review','ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY];
+function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
+$('exportBackup').onclick=()=>{
+ try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
+ catch(err){$('backupStatus').textContent='백업 파일을 만들지 못했어요: '+err.message;}
+};
+$('importBackup').onclick=()=>$('backupFile').click();
+$('backupFile').onchange=async e=>{
+ const file=e.target.files&&e.target.files[0];if(!file)return;
+ try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
+  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REWARD_KEY,REDEEM_KEY];
+  for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
+  if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
+  if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
+  if(!confirm('현재 이 휴대폰의 일빵빵 학습 기록을 백업 파일의 기록으로 덮어쓸까요? 백업에 없는 항목은 현재 값을 유지합니다.'))return;
+  BACKUP_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(obj.data,k))localStorage.setItem(k,obj.data[k]);});
+  $('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
+  const rate=localStorage.getItem('ilbbangSeqVoiceRate');if(rate){$('voiceRate').value=rate;$('rateLabel').textContent=Number(rate).toFixed(2)+'배';}
+  previewDay=null;render();$('backupStatus').textContent='백업 기록을 복원했어요. 학습 달력과 문장 체크를 확인해 보세요.';
+ }catch(err){$('backupStatus').textContent='복원 실패: '+err.message;}
+ finally{e.target.value='';}
+};
+
+$('rewardOptions').addEventListener('click',e=>{
+ const btn=e.target.closest('[data-reward]');if(!btn)return;const reward=REWARDS.find(r=>r.id===btn.dataset.reward);if(!reward)return;
+ if(availableStars()<reward.cost){$('rewardStatus').textContent='별 포인트가 조금 더 필요해요.';return;}
+ const requests=redeemedRequests(),id=reward.id+'_'+Date.now();requests[id]={rewardId:reward.id,title:reward.title,cost:reward.cost,status:'pending',requestedAt:new Date().toISOString()};writeMap(REDEEM_KEY,requests);renderRewards();
+ $('rewardStatus').textContent=`${reward.title} 보상을 요청했어요! 부모님께 이 화면을 보여드리고 확인받아 주세요.`;
+});
+$('rewardStatus').addEventListener('click',e=>{const btn=e.target.closest('[data-approve]');if(!btn)return;const requests=redeemedRequests(),item=requests[btn.dataset.approve];if(!item||item.status!=='pending')return;if(!confirm('부모님이 실제 보상을 제공했나요? 확인하면 별 포인트가 차감됩니다.'))return;item.status='approved';item.approvedAt=new Date().toISOString();writeMap(REDEEM_KEY,requests);renderRewards();});
+$('sentenceList').addEventListener('click',e=>{
+ const recordBtn=e.target.closest('[data-record]');
+ if(recordBtn){const no=Number(recordBtn.getAttribute('data-record'));if(activeNo===no)finishRecording();else startRecording(no);return;}
+ const speakBtn=e.target.closest('[data-speak]');
+ if(speakBtn){const no=Number(speakBtn.getAttribute('data-speak'));const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(item)speakEnglish(item.en);return;}
+ const btn=e.target.closest('[data-review]');if(!btn)return;
+ const no=btn.getAttribute('data-review');let m=readMap('ilbbangSeq600Review');
+ if(m[no])delete m[no];else m[no]=true;
+ writeMap('ilbbangSeq600Review',m);render();
+});
+window.ilbbangRenderAfterCloudSync = render;
+render();
+
+// 음성 목록은 브라우저가 비동기로 제공할 수 있어 준비 완료 이벤트도 처리
+if('speechSynthesis' in window){populateVoices();window.speechSynthesis.onvoiceschanged=populateVoices;}
+document.getElementById('voiceRate')?.addEventListener('input',e=>{document.getElementById('rateLabel').textContent=Number(e.target.value).toFixed(2)+'배';localStorage.setItem('ilbbangSeqVoiceRate',e.target.value)});
+const savedRate=localStorage.getItem('ilbbangSeqVoiceRate');if(savedRate){document.getElementById('voiceRate').value=savedRate;document.getElementById('rateLabel').textContent=Number(savedRate).toFixed(2)+'배';}
+</script><script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, runTransaction, serverTimestamp, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDT_gTnwBSghvmPQ2s0hcmW9XNqYjV7Pqg",
+  authDomain: "family-61367.firebaseapp.com",
+  projectId: "family-61367",
+  storageBucket: "family-61367.firebasestorage.app",
+  messagingSenderId: "706014426399",
+  appId: "1:706014426399:web:c3edb6bd45cc690fe32c2a",
+  measurementId: "G-ZLFW1CRS43"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const CLOUD_KEYS = [
+  'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
+  'ilbbangSeq600Review', 'ilbbangSeqVoiceRate',
+  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests'
+];
+let syncReady = false;
+let suppressSync = false;
+let saveTimer = null;
+let currentUid = null;
+let lastCloudData = null;
+let stopCloudListener = null;
+
+const panel = document.createElement('section');
+panel.className = 'panel';
+panel.innerHTML = `
+  <strong>🔐 가족 공용 로그인 · 학습 기록 동기화</strong>
+  <div class="small" style="margin:8px 0">
+    부모님과 자녀의 휴대폰에서 <b>같은 이메일과 비밀번호</b>로 로그인해 주세요.
+    계정은 한 번만 만들면 됩니다.
+  </div>
+  <div id="loginStatus" class="status">로그인 상태를 확인하고 있어요.</div>
+  <div style="margin-top:12px">
+    <label for="parentEmail">공용 이메일</label>
+    <input id="parentEmail" type="email" autocomplete="username" placeholder="가족 공용 이메일"
+      style="width:100%;margin:5px 0 10px">
+    <label for="parentPassword">비밀번호</label>
+    <input id="parentPassword" type="password" autocomplete="current-password" placeholder="6자리 이상"
+      style="width:100%;margin:5px 0 10px">
+  </div>
+  <div class="actions">
+    <button class="primary" id="parentLogin">공용 계정 로그인</button>
+    <button id="parentJoin">새 계정 만들기</button>
+  </div>
+  <div class="actions" style="margin-top:8px">
+    <button id="logout">로그아웃</button>
+    <button id="syncNow">지금 동기화</button>
+  </div>
+  <div class="small" id="loginMessage" style="margin-top:10px" aria-live="polite"></div>
+`;
+document.querySelector('main').prepend(panel);
+const $login = id => document.getElementById(id);
+const message = value => { $login('loginMessage').textContent = value; };
+const status = value => { $login('loginStatus').textContent = value; };
+
+function readLocalSnapshot() {
+  const data = {};
+  for (const key of CLOUD_KEYS) {
+    const value = localStorage.getItem(key);
+    if (value !== null) data[key] = value;
+  }
+  return data;
+}
+function parseObject(value) {
+  try { const parsed = JSON.parse(value || '{}'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}; }
+  catch { return {}; }
+}
+function mergeMapStrings(cloudValue, localValue) {
+  const cloud = parseObject(cloudValue), local = parseObject(localValue);
+  return JSON.stringify({ ...cloud, ...local });
+}
+function mergeSnapshots(cloudData, localData) {
+  const merged = { ...(cloudData || {}) };
+  const mapKeys = [
+    'ilbbangSeq600Records', 'ilbbangSeq600Checked', 'ilbbangSeq600Review',
+    'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests'
+  ];
+  for (const key of mapKeys) {
+    if (cloudData?.[key] !== undefined || localData?.[key] !== undefined) {
+      merged[key] = mergeMapStrings(cloudData?.[key], localData?.[key]);
+    }
+  }
+  // 날짜와 음성 속도는 이미 클라우드에 값이 있으면 그 값을 우선합니다.
+  for (const key of ['ilbbangSeq600Start', 'ilbbangSeqVoiceRate']) {
+    if (cloudData?.[key] === undefined && localData?.[key] !== undefined) merged[key] = localData[key];
+  }
+  return merged;
+}
+function applySnapshot(data) {
+  suppressSync = true;
+  try {
+    for (const key of CLOUD_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(data || {}, key)) localStorage.setItem(key, data[key]);
+    }
+    const start = localStorage.getItem('ilbbangSeq600Start');
+    if (start) document.getElementById('startDate').value = start;
+    const rate = localStorage.getItem('ilbbangSeqVoiceRate');
+    if (rate) {
+      document.getElementById('voiceRate').value = rate;
+      document.getElementById('rateLabel').textContent = Number(rate).toFixed(2) + '배';
+    }
+  } finally { suppressSync = false; }
+  // 기존 학습 화면의 달력·포인트·문장 표시를 새 데이터로 다시 그립니다.
+  if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
+}
+async function saveCloudSnapshot(reason = '자동') {
+  if (!syncReady || !currentUid || suppressSync) return;
+  const uid = currentUid;
+  const localData = readLocalSnapshot();
+  const ref = doc(db, 'ilbbangUsers', uid);
+  try {
+    await runTransaction(db, async transaction => {
+      // 최초 로그인 때 기기 간 기록을 합친 뒤에는 이 기기의 전체 스냅샷을 저장합니다.
+      // 이렇게 해야 복습 해제·문장 체크 취소도 다른 휴대폰에 반영됩니다.
+      transaction.set(ref, { data: localData, updatedAt: serverTimestamp() });
+      lastCloudData = localData;
+    });
+    status('☁️ 로그인됨 · 학습 기록이 클라우드에 저장됐어요.');
+    if (reason === 'manual') message('지금 동기화했어요. 다른 휴대폰에서도 같은 계정으로 로그인하면 기록을 볼 수 있어요.');
+  } catch (error) {
+    status('동기화에 실패했어요. 인터넷과 Firestore 설정을 확인해 주세요.');
+    message('저장 오류: ' + error.message);
+  }
+}
+function scheduleCloudSave() {
+  if (!syncReady || suppressSync) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveCloudSnapshot('auto'), 700);
+}
+
+// 기존 앱의 localStorage 저장 코드는 그대로 두고, 학습 관련 키가 바뀔 때만 클라우드에 반영합니다.
+const originalSetItem = Storage.prototype.setItem;
+Storage.prototype.setItem = function(key, value) {
+  originalSetItem.call(this, key, value);
+  if (this === localStorage && CLOUD_KEYS.includes(String(key))) scheduleCloudSave();
+};
+
+async function loadAndMergeCloud(user) {
+  currentUid = user.uid;
+  syncReady = false;
+  status('☁️ 클라우드 기록을 확인하고 있어요…');
+  const ref = doc(db, 'ilbbangUsers', user.uid);
+  try {
+    const snap = await getDoc(ref);
+    const localData = readLocalSnapshot();
+    if (!snap.exists()) {
+      // 최초 로그인: 이 기기의 기존 학습 기록을 그대로 최초 클라우드 데이터로 등록합니다.
+      await setDoc(ref, { data: localData, updatedAt: serverTimestamp() });
+      lastCloudData = localData;
+      syncReady = true;
+      status('☁️ 첫 동기화 완료 · 기존 학습 기록을 클라우드에 보관했어요.');
+    } else {
+      const cloudData = snap.data().data || {};
+      const merged = mergeSnapshots(cloudData, localData);
+      await setDoc(ref, { data: merged, updatedAt: serverTimestamp() });
+      lastCloudData = merged;
+      applySnapshot(merged);
+      syncReady = true;
+      status('☁️ 동기화 완료 · 이 기기와 클라우드 기록을 합쳤어요.');
+    }
+    if (stopCloudListener) stopCloudListener();
+    stopCloudListener = onSnapshot(ref, cloudSnap => {
+      if (!syncReady || !cloudSnap.exists()) return;
+      const incoming = cloudSnap.data().data || {};
+      const incomingText = JSON.stringify(incoming);
+      if (incomingText === JSON.stringify(lastCloudData)) return;
+      lastCloudData = incoming;
+      applySnapshot(incoming);
+      status('☁️ 다른 휴대폰의 학습 기록을 받아왔어요.');
+    }, listenerError => {
+      message('실시간 동기화 연결이 끊겼어요: ' + listenerError.message);
+    });
+  } catch (error) {
+    syncReady = false;
+    status('클라우드 연결 실패 · 현재 기기의 기록은 그대로 보존되어 있어요.');
+    message('연결 오류: ' + error.message + ' (Firestore 데이터베이스와 보안 규칙을 확인해 주세요.)');
+  }
+}
+
+$login('parentLogin').onclick = async () => {
+  const email = $login('parentEmail').value.trim();
+  const password = $login('parentPassword').value;
+  if (!email || !password) { message('이메일과 비밀번호를 입력해 주세요.'); return; }
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    message('공용 계정 로그인 요청을 완료했어요. 클라우드 기록을 불러오는 중입니다.');
+  } catch (error) { message('로그인 실패: ' + error.message); }
+};
+$login('parentJoin').onclick = async () => {
+  const email = $login('parentEmail').value.trim();
+  const password = $login('parentPassword').value;
+  if (!email || password.length < 6) { message('이메일과 6자리 이상의 비밀번호를 입력해 주세요.'); return; }
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    message('공용 계정을 만들었어요. 다른 휴대폰에서도 이 계정으로 로그인하면 됩니다.');
+  } catch (error) { message('가입 실패: ' + error.message); }
+};
+$login('logout').onclick = async () => {
+  try { syncReady = false; currentUid = null; await signOut(auth); message('로그아웃했어요. 이 기기의 기존 기록은 삭제되지 않았어요.'); }
+  catch (error) { message('로그아웃 실패: ' + error.message); }
+};
+$login('syncNow').onclick = () => {
+  if (!auth.currentUser) { message('먼저 공용 계정으로 로그인해 주세요.'); return; }
+  saveCloudSnapshot('manual');
+};
+onAuthStateChanged(auth, async user => {
+  if (!user) {
+    syncReady = false; currentUid = null;
+    if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
+    status('로그인 전입니다. 두 휴대폰에서 같은 공용 계정으로 로그인해 주세요.');
+    return;
+  }
+  if (user.isAnonymous) {
+    syncReady = false; currentUid = null;
+    if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
+    status('익명 계정이 로그인되어 있어요. 로그아웃한 뒤 공용 이메일 계정으로 로그인해 주세요.');
+    return;
+  }
+  status('계정 확인 완료: ' + user.email);
+  await loadAndMergeCloud(user);
+});
+</script>
+</body></html>

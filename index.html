@@ -280,4 +280,125 @@ render();
 if('speechSynthesis' in window){populateVoices();window.speechSynthesis.onvoiceschanged=populateVoices;}
 document.getElementById('voiceRate')?.addEventListener('input',e=>{document.getElementById('rateLabel').textContent=Number(e.target.value).toFixed(2)+'배';localStorage.setItem('ilbbangSeqVoiceRate',e.target.value)});
 const savedRate=localStorage.getItem('ilbbangSeqVoiceRate');if(savedRate){document.getElementById('voiceRate').value=savedRate;document.getElementById('rateLabel').textContent=Number(savedRate).toFixed(2)+'배';}
-</script></body></html>
+</script><script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInAnonymously,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDT_gTnwBSghvmPQ2s0hcmW9XNqYjV7Pqg",
+  authDomain: "family-61367.firebaseapp.com",
+  projectId: "family-61367",
+  storageBucket: "family-61367.firebasestorage.app",
+  messagingSenderId: "706014426399",
+  appId: "1:706014426399:web:c3edb6bd45cc690fe32c2a",
+  measurementId: "G-ZLFW1CRS43"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+const panel = document.createElement("section");
+panel.className = "panel";
+panel.innerHTML = `
+  <strong>🔐 부모 · 자녀 로그인</strong>
+  <div class="small" style="margin:8px 0">
+    부모님은 이메일 계정을, 자녀는 간편 로그인을 이용하세요.
+  </div>
+  <div id="loginStatus" class="status">로그인 상태를 확인하고 있어요.</div>
+  <div style="margin-top:12px">
+    <label for="parentEmail">부모 이메일</label>
+    <input id="parentEmail" type="email" placeholder="이메일 주소"
+      style="width:100%;margin:5px 0 10px">
+    <label for="parentPassword">비밀번호</label>
+    <input id="parentPassword" type="password" placeholder="6자리 이상"
+      style="width:100%;margin:5px 0 10px">
+  </div>
+  <div class="actions">
+    <button class="primary" id="parentLogin">부모 로그인</button>
+    <button id="parentJoin">부모 회원가입</button>
+  </div>
+  <div class="actions" style="margin-top:8px">
+    <button id="childLogin">자녀 간편 로그인</button>
+    <button id="logout">로그아웃</button>
+  </div>
+  <div class="small" id="loginMessage" style="margin-top:10px"
+    aria-live="polite"></div>
+`;
+document.querySelector("main").prepend(panel);
+
+const $login = id => document.getElementById(id);
+const message = text => {
+  $login("loginMessage").textContent = text;
+};
+
+$login("parentLogin").onclick = async () => {
+  const email = $login("parentEmail").value.trim();
+  const password = $login("parentPassword").value;
+  if (!email || !password) {
+    message("이메일과 비밀번호를 입력해 주세요.");
+    return;
+  }
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    message("부모 로그인 성공!");
+  } catch (e) {
+    message("로그인 실패: " + e.message);
+  }
+};
+
+$login("parentJoin").onclick = async () => {
+  const email = $login("parentEmail").value.trim();
+  const password = $login("parentPassword").value;
+  if (!email || password.length < 6) {
+    message("이메일과 6자리 이상의 비밀번호를 입력해 주세요.");
+    return;
+  }
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    message("부모 계정이 만들어졌어요!");
+  } catch (e) {
+    message("가입 실패: " + e.message);
+  }
+};
+
+$login("childLogin").onclick = async () => {
+  try {
+    if (auth.currentUser) {
+      message("이미 로그인되어 있어요.");
+      return;
+    }
+    await signInAnonymously(auth);
+    message("자녀 간편 로그인 성공!");
+  } catch (e) {
+    message("자녀 로그인 실패: " + e.message);
+  }
+};
+
+$login("logout").onclick = async () => {
+  try {
+    await signOut(auth);
+    message("로그아웃했어요.");
+  } catch (e) {
+    message("로그아웃 실패: " + e.message);
+  }
+};
+
+onAuthStateChanged(auth, user => {
+  const status = $login("loginStatus");
+  if (!user) {
+    status.textContent = "로그인 전입니다.";
+  } else if (user.isAnonymous) {
+    status.textContent = "자녀 계정으로 로그인 중입니다.";
+  } else {
+    status.textContent = "부모 계정 로그인 중: " + user.email;
+  }
+});
+</script>
+</body></html>

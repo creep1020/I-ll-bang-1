@@ -74,8 +74,8 @@ if ('serviceWorker' in navigator) {
 </section>
 <section class="panel" id="cloudPanel">
 <strong style="font-size:14px">👨‍👧 부모 · 자녀 학습 공유</strong>
-<p class="small" style="margin:8px 0 0">부모와 자녀의 휴대폰에서 같은 공용 계정으로 로그인하면 학습 기록을 함께 사용할 수 있어요.</p>
-<div class="status" style="margin-top:10px">로그인 후 학습 완료, 문장 체크, 복습 목록, 별 포인트, 보상 요청, 학습 시작일과 음성 속도가 클라우드에 저장됩니다. 최초 로그인 시 이 기기에 있던 기존 기록을 먼저 보존해 올립니다.</div>
+<p class="small" style="margin:8px 0 0">같은 공용 계정으로 로그인하고 프로필을 선택하면 가족 구성원별 학습 기록을 따로 관리할 수 있어요.</p>
+<div class="status" style="margin-top:10px">프로필마다 학습 진도, 완료 기록, 연속 학습, 별 포인트, 배지와 복습 목록이 분리됩니다. 기존 기록은 첫 프로필로 보존해 옮깁니다.</div>
 </section>
 <section class="panel calendar">
 <div class="calendar-head"><button id="prevMonth">‹</button><strong id="monthTitle">학습 기록</strong><button id="nextMonth">›</button></div>
@@ -325,6 +325,18 @@ panel.innerHTML = `
     계정은 한 번만 만들면 됩니다.
   </div>
   <div id="loginStatus" class="status">로그인 상태를 확인하고 있어요.</div>
+  <div id="profileControls" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px">
+    <strong style="font-size:14px">👤 학습 프로필</strong>
+    <div class="controls" style="margin-top:8px">
+      <select id="profileSelect" aria-label="학습 프로필 선택" style="flex:1;min-width:130px"></select>
+      <button id="addProfile">프로필 추가</button>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button id="renameProfile">이름 변경</button>
+      <button id="deleteProfile">프로필 삭제</button>
+    </div>
+    <div class="small" id="profileMessage" style="margin-top:8px">프로필별로 학습 기록이 따로 저장됩니다. 최대 5개까지 만들 수 있어요.</div>
+  </div>
   <div style="margin-top:12px">
     <label for="parentEmail">공용 이메일</label>
     <input id="parentEmail" type="email" autocomplete="username" placeholder="가족 공용 이메일"
@@ -348,6 +360,13 @@ const $login = id => document.getElementById(id);
 const message = value => { $login('loginMessage').textContent = value; };
 const status = value => { $login('loginStatus').textContent = value; };
 
+const PROFILE_LIMIT = 5;
+const ACTIVE_PROFILE_KEY = 'ilbbangActiveProfileId';
+const DEFAULT_PROFILE = { id: 'profile_default', name: '나' };
+let profiles = [DEFAULT_PROFILE];
+let activeProfileId = DEFAULT_PROFILE.id;
+let profileData = {};
+let switchingProfile = false;
 function readLocalSnapshot() {
   const data = {};
   for (const key of CLOUD_KEYS) {
@@ -366,17 +385,11 @@ function mergeMapStrings(cloudValue, localValue) {
 }
 function mergeSnapshots(cloudData, localData) {
   const merged = { ...(cloudData || {}) };
-  const mapKeys = [
-    'ilbbangSeq600Records', 'ilbbangSeq600Checked', 'ilbbangSeq600Review',
-    'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests'
-  ];
+  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review','ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests'];
   for (const key of mapKeys) {
-    if (cloudData?.[key] !== undefined || localData?.[key] !== undefined) {
-      merged[key] = mergeMapStrings(cloudData?.[key], localData?.[key]);
-    }
+    if (cloudData?.[key] !== undefined || localData?.[key] !== undefined) merged[key] = mergeMapStrings(cloudData?.[key], localData?.[key]);
   }
-  // 날짜와 음성 속도는 이미 클라우드에 값이 있으면 그 값을 우선합니다.
-  for (const key of ['ilbbangSeq600Start', 'ilbbangSeqVoiceRate']) {
+  for (const key of ['ilbbangSeq600Start','ilbbangSeqVoiceRate']) {
     if (cloudData?.[key] === undefined && localData?.[key] !== undefined) merged[key] = localData[key];
   }
   return merged;
@@ -386,50 +399,73 @@ function applySnapshot(data) {
   try {
     for (const key of CLOUD_KEYS) {
       if (Object.prototype.hasOwnProperty.call(data || {}, key)) localStorage.setItem(key, data[key]);
+      else localStorage.removeItem(key);
     }
     const start = localStorage.getItem('ilbbangSeq600Start');
-    if (start) document.getElementById('startDate').value = start;
+    document.getElementById('startDate').value = start || iso(today);
     const rate = localStorage.getItem('ilbbangSeqVoiceRate');
     if (rate) {
       document.getElementById('voiceRate').value = rate;
       document.getElementById('rateLabel').textContent = Number(rate).toFixed(2) + '배';
     }
   } finally { suppressSync = false; }
-  // 기존 학습 화면의 달력·포인트·문장 표시를 새 데이터로 다시 그립니다.
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
+function updateProfileControls() {
+  const controls = $login('profileControls');
+  controls.style.display = syncReady ? 'block' : 'none';
+  if (!syncReady) return;
+  const select = $login('profileSelect');
+  select.innerHTML = profiles.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  select.value = activeProfileId;
+  $login('deleteProfile').disabled = profiles.length <= 1;
+  $login('addProfile').disabled = profiles.length >= PROFILE_LIMIT;
+}
+function profileMessage(value) { $login('profileMessage').textContent = value; }
+async function persistProfileState() {
+  if (!currentUid || !syncReady) return;
+  const ref = doc(db, 'ilbbangUsers', currentUid);
+  const localData = readLocalSnapshot();
+  profileData[activeProfileId] = localData;
+  await runTransaction(db, async transaction => {
+    const snap = await transaction.get(ref);
+    const cloud = snap.exists() ? snap.data() : {};
+    const allData = { ...(cloud.profileData || {}), [activeProfileId]: localData };
+    transaction.set(ref, { profiles, activeProfileId, profileData: allData, updatedAt: serverTimestamp() });
+    lastCloudData = allData[activeProfileId];
+  });
+}
 async function saveCloudSnapshot(reason = '자동') {
-  if (!syncReady || !currentUid || suppressSync) return;
+  if (!syncReady || !currentUid || suppressSync || switchingProfile) return;
   const uid = currentUid;
   const localData = readLocalSnapshot();
   const ref = doc(db, 'ilbbangUsers', uid);
   try {
+    profileData[activeProfileId] = localData;
     await runTransaction(db, async transaction => {
-      // 최초 로그인 때 기기 간 기록을 합친 뒤에는 이 기기의 전체 스냅샷을 저장합니다.
-      // 이렇게 해야 복습 해제·문장 체크 취소도 다른 휴대폰에 반영됩니다.
-      transaction.set(ref, { data: localData, updatedAt: serverTimestamp() });
+      const snap = await transaction.get(ref);
+      const cloud = snap.exists() ? snap.data() : {};
+      const allData = { ...(cloud.profileData || {}), [activeProfileId]: localData };
+      transaction.set(ref, { profiles, activeProfileId, profileData: allData, updatedAt: serverTimestamp() });
       lastCloudData = localData;
     });
-    status('☁️ 로그인됨 · 학습 기록이 클라우드에 저장됐어요.');
-    if (reason === 'manual') message('지금 동기화했어요. 다른 휴대폰에서도 같은 계정으로 로그인하면 기록을 볼 수 있어요.');
+    status(`☁️ 로그인됨 · ${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'} 기록 저장 완료`);
+    if (reason === 'manual') message('지금 동기화했어요. 다른 휴대폰에서도 같은 프로필을 선택하면 기록을 볼 수 있어요.');
   } catch (error) {
     status('동기화에 실패했어요. 인터넷과 Firestore 설정을 확인해 주세요.');
     message('저장 오류: ' + error.message);
   }
 }
 function scheduleCloudSave() {
-  if (!syncReady || suppressSync) return;
+  if (!syncReady || suppressSync || switchingProfile) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => saveCloudSnapshot('auto'), 700);
 }
-
-// 기존 앱의 localStorage 저장 코드는 그대로 두고, 학습 관련 키가 바뀔 때만 클라우드에 반영합니다.
 const originalSetItem = Storage.prototype.setItem;
 Storage.prototype.setItem = function(key, value) {
   originalSetItem.call(this, key, value);
   if (this === localStorage && CLOUD_KEYS.includes(String(key))) scheduleCloudSave();
 };
-
 async function loadAndMergeCloud(user) {
   currentUid = user.uid;
   syncReady = false;
@@ -439,38 +475,148 @@ async function loadAndMergeCloud(user) {
     const snap = await getDoc(ref);
     const localData = readLocalSnapshot();
     if (!snap.exists()) {
-      // 최초 로그인: 이 기기의 기존 학습 기록을 그대로 최초 클라우드 데이터로 등록합니다.
-      await setDoc(ref, { data: localData, updatedAt: serverTimestamp() });
+      profiles = [{...DEFAULT_PROFILE}];
+      activeProfileId = DEFAULT_PROFILE.id;
+      localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
+      profileData = {[activeProfileId]: localData};
+      await setDoc(ref, { profiles, activeProfileId, profileData, updatedAt: serverTimestamp() });
       lastCloudData = localData;
       syncReady = true;
-      status('☁️ 첫 동기화 완료 · 기존 학습 기록을 클라우드에 보관했어요.');
+      status('☁️ 첫 동기화 완료 · 기존 기록을 첫 프로필에 보관했어요.');
     } else {
-      const cloudData = snap.data().data || {};
-      const merged = mergeSnapshots(cloudData, localData);
-      await setDoc(ref, { data: merged, updatedAt: serverTimestamp() });
+      const cloud = snap.data();
+      if (Array.isArray(cloud.profiles) && cloud.profiles.length) {
+        profiles = cloud.profiles.slice(0, PROFILE_LIMIT).map(p=>({id:String(p.id),name:String(p.name||'프로필')}));
+        const savedProfile = localStorage.getItem(ACTIVE_PROFILE_KEY);
+        activeProfileId = profiles.some(p=>p.id===savedProfile) ? savedProfile : (profiles.some(p=>p.id===cloud.activeProfileId) ? cloud.activeProfileId : profiles[0].id);
+        profileData = {...(cloud.profileData || {})};
+      } else {
+        // 기존 공용 학습 데이터는 첫 프로필로 이전해 그대로 보존합니다.
+        profiles = [{...DEFAULT_PROFILE}];
+        activeProfileId = DEFAULT_PROFILE.id;
+        localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
+        profileData = {[activeProfileId]: cloud.data || {}};
+      }
+      const prior = profileData[activeProfileId] || {};
+      const merged = mergeSnapshots(prior, localData);
+      profileData[activeProfileId] = merged;
+      await setDoc(ref, { profiles, activeProfileId, profileData, updatedAt: serverTimestamp() });
       lastCloudData = merged;
       applySnapshot(merged);
       syncReady = true;
-      status('☁️ 동기화 완료 · 이 기기와 클라우드 기록을 합쳤어요.');
+      status('☁️ 동기화 완료 · 기존 기록을 프로필에 연결했어요.');
     }
+    updateProfileControls();
     if (stopCloudListener) stopCloudListener();
     stopCloudListener = onSnapshot(ref, cloudSnap => {
-      if (!syncReady || !cloudSnap.exists()) return;
-      const incoming = cloudSnap.data().data || {};
+      if (!syncReady || !cloudSnap.exists() || switchingProfile) return;
+      const cloud = cloudSnap.data();
+      if (Array.isArray(cloud.profiles)) {
+        profiles = cloud.profiles.slice(0, PROFILE_LIMIT);
+        profileData = {...(cloud.profileData || {})};
+        if (!profiles.some(p=>p.id===activeProfileId) && profiles.length) {
+          activeProfileId = profiles[0].id;
+          localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
+          const fallback = profileData[activeProfileId] || {};
+          lastCloudData = fallback;
+          applySnapshot(fallback);
+        }
+        updateProfileControls();
+      }
+      const incoming = (cloud.profileData || {})[activeProfileId];
+      if (!incoming) return;
       const incomingText = JSON.stringify(incoming);
       if (incomingText === JSON.stringify(lastCloudData)) return;
       lastCloudData = incoming;
+      profileData[activeProfileId] = incoming;
       applySnapshot(incoming);
-      status('☁️ 다른 휴대폰의 학습 기록을 받아왔어요.');
-    }, listenerError => {
-      message('실시간 동기화 연결이 끊겼어요: ' + listenerError.message);
-    });
+      status(`☁️ ${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'}의 다른 기기 기록을 받아왔어요.`);
+    }, listenerError => message('실시간 동기화 연결이 끊겼어요: ' + listenerError.message));
   } catch (error) {
     syncReady = false;
     status('클라우드 연결 실패 · 현재 기기의 기록은 그대로 보존되어 있어요.');
     message('연결 오류: ' + error.message + ' (Firestore 데이터베이스와 보안 규칙을 확인해 주세요.)');
   }
 }
+async function switchProfile(nextId) {
+  if (!syncReady || nextId === activeProfileId) return;
+  switchingProfile = true;
+  try {
+    profileData[activeProfileId] = readLocalSnapshot();
+    const ref = doc(db, 'ilbbangUsers', currentUid);
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      const cloud = snap.exists() ? snap.data() : {};
+      const allData = {...(cloud.profileData || {}), [activeProfileId]: readLocalSnapshot()};
+      transaction.set(ref, {profiles, activeProfileId:nextId, profileData:allData, updatedAt:serverTimestamp()});
+      profileData = allData;
+    });
+    activeProfileId = nextId;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
+    const selected = profileData[nextId] || {};
+    applySnapshot(selected);
+    lastCloudData = selected;
+    updateProfileControls();
+    status(`☁️ ${profiles.find(p=>p.id===nextId)?.name || '프로필'} 프로필로 전환했어요.`);
+  } catch (error) {
+    message('프로필 전환 실패: ' + error.message);
+    $login('profileSelect').value = activeProfileId;
+  } finally { switchingProfile = false; }
+}
+$login('profileSelect').onchange = e => switchProfile(e.target.value);
+$login('addProfile').onclick = async () => {
+  if (profiles.length >= PROFILE_LIMIT) return;
+  const name = prompt('새 프로필 이름을 입력해 주세요.');
+  if (!name || !name.trim()) return;
+  if (profiles.some(p=>p.name.toLowerCase()===name.trim().toLowerCase())) { profileMessage('이미 사용 중인 이름이에요.'); return; }
+  try {
+    profileData[activeProfileId] = readLocalSnapshot();
+    const id = 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    profiles.push({id, name:name.trim().slice(0,20)});
+    profileData[id] = {};
+    activeProfileId = id;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
+    applySnapshot({});
+    await persistProfileState();
+    lastCloudData = {};
+    updateProfileControls();
+    status(`${name.trim()} 프로필을 만들었어요.`);
+  } catch(error) { message('프로필 추가 실패: ' + error.message); }
+};
+$login('renameProfile').onclick = async () => {
+  const current = profiles.find(p=>p.id===activeProfileId);
+  const name = prompt('프로필의 새 이름을 입력해 주세요.', current?.name || '');
+  if (!name || !name.trim() || !current) return;
+  current.name = name.trim().slice(0,20);
+  try { await persistProfileState(); updateProfileControls(); profileMessage('프로필 이름을 변경했어요.'); }
+  catch(error) { message('이름 변경 실패: ' + error.message); }
+};
+$login('deleteProfile').onclick = async () => {
+  if (profiles.length <= 1) return;
+  const current = profiles.find(p=>p.id===activeProfileId);
+  if (!current || !confirm(`'${current.name}' 프로필과 그 학습 기록을 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) return;
+  const replacement = profiles.find(p=>p.id!==activeProfileId);
+  try {
+    profiles = profiles.filter(p=>p.id!==activeProfileId);
+    delete profileData[activeProfileId];
+    activeProfileId = replacement.id;
+    localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
+    const selected = profileData[activeProfileId] || {};
+    applySnapshot(selected);
+    const ref = doc(db, 'ilbbangUsers', currentUid);
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      const cloud = snap.exists() ? snap.data() : {};
+      const allData = { ...(cloud.profileData || {}), [activeProfileId]: readLocalSnapshot() };
+      delete allData[current.id];
+      transaction.set(ref, { profiles, activeProfileId, profileData: allData, updatedAt: serverTimestamp() });
+      lastCloudData = allData[activeProfileId];
+    });
+    lastCloudData = selected;
+    updateProfileControls();
+    status(`${current.name} 프로필을 삭제했어요.`);
+  } catch(error) { message('프로필 삭제 실패: ' + error.message); }
+};
 
 $login('parentLogin').onclick = async () => {
   const email = $login('parentEmail').value.trim();
@@ -501,12 +647,14 @@ $login('syncNow').onclick = () => {
 onAuthStateChanged(auth, async user => {
   if (!user) {
     syncReady = false; currentUid = null;
+    updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     status('로그인 전입니다. 두 휴대폰에서 같은 공용 계정으로 로그인해 주세요.');
     return;
   }
   if (user.isAnonymous) {
     syncReady = false; currentUid = null;
+    updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     status('익명 계정이 로그인되어 있어요. 로그아웃한 뒤 공용 이메일 계정으로 로그인해 주세요.');
     return;

@@ -315,6 +315,9 @@ let saveTimer = null;
 let currentUid = null;
 let lastCloudData = null;
 let stopCloudListener = null;
+let parentNotifySettings = { enabled:false, time:'19:00', sound:true, lockscreen:'full', pinHash:'' };
+let parentSettingsUnlocked = false;
+let stopNotifySettingsListener = null;
 
 const panel = document.createElement('section');
 panel.className = 'panel';
@@ -336,6 +339,37 @@ panel.innerHTML = `
       <button id="deleteProfile">프로필 삭제</button>
     </div>
     <div class="small" id="profileMessage" style="margin-top:8px">프로필별로 학습 기록이 따로 저장됩니다. 최대 5개까지 만들 수 있어요.</div>
+    <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+      <button id="parentSettingsOpen" type="button">🔔 부모 알림 설정</button>
+      <div id="parentSettingsPanel" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px">
+        <strong>🔐 부모 전용 설정</strong>
+        <div class="small" id="parentPinHint" style="margin:7px 0">부모 PIN을 설정해 주세요.</div>
+        <div id="pinSetupArea">
+          <label for="pinCreate">새 PIN (숫자 4자리)</label>
+          <input id="pinCreate" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="4자리 PIN" style="width:100%;margin:5px 0 8px">
+          <label for="pinConfirm">PIN 확인</label>
+          <input id="pinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="같은 PIN 다시 입력" style="width:100%;margin:5px 0 8px">
+          <button id="pinSave" type="button" class="primary">PIN 만들기</button>
+        </div>
+        <div id="pinUnlockArea" style="display:none">
+          <label for="pinEntry">부모 PIN 입력</label>
+          <input id="pinEntry" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="4자리 PIN" style="width:100%;margin:5px 0 8px">
+          <button id="pinUnlock" type="button" class="primary">잠금 해제</button>
+        </div>
+        <div id="parentSettingsArea" style="display:none;margin-top:12px">
+          <label style="display:flex;gap:8px;align-items:center"><input id="notifyEnabled" type="checkbox"> 가족 알림 켜기</label>
+          <label for="notifyTime" style="display:block;margin-top:10px">알림 시간</label>
+          <input id="notifyTime" type="time" value="19:00" style="width:100%;margin:5px 0 8px">
+          <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="notifySound" type="checkbox" checked> 알림 소리 켜기</label>
+          <label for="notifyLockscreen" style="display:block;margin-top:10px">잠금화면 표시</label>
+          <select id="notifyLockscreen" style="width:100%;margin:5px 0 8px"><option value="full">메시지 전체 표시</option><option value="private">내용 숨기기</option></select>
+          <div class="small" style="margin:8px 0">표시 방식: 휴대폰 알림 + 앱 내부 축하 팝업</div>
+          <button id="notifySave" type="button" class="primary">알림 설정 저장</button>
+          <button id="parentLock" type="button">잠그기</button>
+          <div class="small" id="notifyStatus" style="margin-top:8px" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
   </div>
   <div style="margin-top:12px">
     <label for="parentEmail">공용 이메일</label>
@@ -411,6 +445,85 @@ function applySnapshot(data) {
   } finally { suppressSync = false; }
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
+const notifySettingsRef = () => currentUid ? doc(db, 'ilbbangUsers', currentUid, 'privateSettings', 'notifications') : null;
+async function hashParentPin(pin) {
+  const bytes = new TextEncoder().encode('ilbbang-parent-pin-v1:' + pin);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function showParentPinState() {
+  const hasPin = !!parentNotifySettings.pinHash;
+  $login('pinSetupArea').style.display = hasPin ? 'none' : 'block';
+  $login('pinUnlockArea').style.display = hasPin && !parentSettingsUnlocked ? 'block' : 'none';
+  $login('parentSettingsArea').style.display = parentSettingsUnlocked ? 'block' : 'none';
+  $login('parentPinHint').textContent = !hasPin ? '처음 한 번 부모 PIN 4자리를 만들어 주세요.' : (parentSettingsUnlocked ? '잠금이 해제됐어요. 설정을 바꿀 수 있습니다.' : '알림 설정을 바꾸려면 부모 PIN이 필요합니다.');
+  if (parentSettingsUnlocked) {
+    $login('notifyEnabled').checked = !!parentNotifySettings.enabled;
+    $login('notifyTime').value = parentNotifySettings.time || '19:00';
+    $login('notifySound').checked = parentNotifySettings.sound !== false;
+    $login('notifyLockscreen').value = parentNotifySettings.lockscreen || 'full';
+  }
+}
+async function loadParentNotifySettings() {
+  if (!currentUid) return;
+  const ref = notifySettingsRef();
+  try {
+    const snap = await getDoc(ref);
+    parentNotifySettings = {enabled:false,time:'19:00',sound:true,lockscreen:'full',...(snap.exists()?snap.data():{})};
+    showParentPinState();
+    if (stopNotifySettingsListener) stopNotifySettingsListener();
+    stopNotifySettingsListener = onSnapshot(ref, snapNow => {
+      if (!snapNow.exists()) return;
+      const incoming = snapNow.data();
+      parentNotifySettings = {enabled:false,time:'19:00',sound:true,lockscreen:'full',...incoming};
+      showParentPinState();
+    }, err => $login('notifyStatus').textContent = '설정 동기화 오류: ' + err.message);
+  } catch (err) {
+    $login('notifyStatus').textContent = '알림 설정을 불러오지 못했어요. Firestore 보안 규칙을 확인해 주세요.';
+  }
+}
+$login('parentSettingsOpen').onclick = () => {
+  const box = $login('parentSettingsPanel');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  if (box.style.display === 'block') showParentPinState();
+};
+$login('pinSave').onclick = async () => {
+  const pin = $login('pinCreate').value, confirmPin = $login('pinConfirm').value;
+  if (!/^\d{4}$/.test(pin)) { $login('parentPinHint').textContent = 'PIN은 숫자 4자리로 입력해 주세요.'; return; }
+  if (pin !== confirmPin) { $login('parentPinHint').textContent = '두 PIN이 서로 달라요. 다시 확인해 주세요.'; return; }
+  try {
+    const pinHash = await hashParentPin(pin);
+    parentNotifySettings = {...parentNotifySettings,pinHash};
+    await setDoc(notifySettingsRef(), parentNotifySettings);
+    parentSettingsUnlocked = true;
+    $login('pinCreate').value = ''; $login('pinConfirm').value = '';
+    showParentPinState();
+  } catch (err) { $login('parentPinHint').textContent = 'PIN 저장 실패: ' + err.message; }
+};
+$login('pinUnlock').onclick = async () => {
+  const pin = $login('pinEntry').value;
+  if (!/^\d{4}$/.test(pin)) { $login('parentPinHint').textContent = '숫자 4자리를 입력해 주세요.'; return; }
+  const hash = await hashParentPin(pin);
+  if (hash !== parentNotifySettings.pinHash) { $login('parentPinHint').textContent = 'PIN이 맞지 않아요.'; $login('pinEntry').value=''; return; }
+  parentSettingsUnlocked = true; $login('pinEntry').value=''; showParentPinState();
+};
+$login('parentLock').onclick = () => { parentSettingsUnlocked = false; showParentPinState(); };
+$login('notifySave').onclick = async () => {
+  if (!parentSettingsUnlocked) return;
+  const enabled = $login('notifyEnabled').checked;
+  if (enabled && !('Notification' in window)) { $login('notifyStatus').textContent = '이 브라우저는 알림을 지원하지 않아요.'; return; }
+  if (enabled && Notification.permission === 'default') {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') { $login('notifyStatus').textContent = '휴대폰 알림 권한을 허용해야 알림을 받을 수 있어요.'; return; }
+  }
+  if (enabled && Notification.permission !== 'granted') { $login('notifyStatus').textContent = '휴대폰 설정에서 이 앱의 알림을 허용해 주세요.'; return; }
+  parentNotifySettings = {...parentNotifySettings,enabled,time:$login('notifyTime').value || '19:00',sound:$login('notifySound').checked,lockscreen:$login('notifyLockscreen').value};
+  try {
+    await setDoc(notifySettingsRef(), parentNotifySettings);
+    $login('notifyStatus').textContent = '가족 공통 설정을 저장했어요. 각 휴대폰에서 알림 권한을 허용해야 합니다. 앱이 닫힌 상태의 정시 알림은 푸시 서버 연결 후 작동합니다.';
+  } catch (err) { $login('notifyStatus').textContent = '저장 실패: ' + err.message + ' · Firestore 보안 규칙을 확인해 주세요.'; }
+};
+
 function updateProfileControls() {
   const controls = $login('profileControls');
   controls.style.display = syncReady ? 'block' : 'none';
@@ -518,6 +631,7 @@ async function loadAndMergeCloud(user) {
       status('☁️ 동기화 완료 · 기존 기록을 프로필에 연결했어요.');
     }
     updateProfileControls();
+    await loadParentNotifySettings();
     if (stopCloudListener) stopCloudListener();
     stopCloudListener = onSnapshot(ref, cloudSnap => {
       if (!syncReady || !cloudSnap.exists() || switchingProfile) return;
@@ -648,7 +762,7 @@ $login('parentJoin').onclick = async () => {
   } catch (error) { message('가입 실패: ' + error.message); }
 };
 $login('logout').onclick = async () => {
-  try { syncReady = false; currentUid = null; await signOut(auth); message('로그아웃했어요. 이 기기의 기존 기록은 삭제되지 않았어요.'); }
+  try { syncReady = false; currentUid = null; parentSettingsUnlocked = false; if (stopNotifySettingsListener) { stopNotifySettingsListener(); stopNotifySettingsListener = null; } await signOut(auth); message('로그아웃했어요. 이 기기의 기존 기록은 삭제되지 않았어요.'); }
   catch (error) { message('로그아웃 실패: ' + error.message); }
 };
 $login('syncNow').onclick = () => {
@@ -657,7 +771,8 @@ $login('syncNow').onclick = () => {
 };
 onAuthStateChanged(auth, async user => {
   if (!user) {
-    syncReady = false; currentUid = null;
+    syncReady = false; currentUid = null; parentSettingsUnlocked = false;
+    if (stopNotifySettingsListener) { stopNotifySettingsListener(); stopNotifySettingsListener = null; }
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     status('로그인 전입니다. 두 휴대폰에서 같은 공용 계정으로 로그인해 주세요.');

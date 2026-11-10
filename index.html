@@ -446,7 +446,18 @@ async function saveCloudSnapshot(reason = '자동') {
       const snap = await transaction.get(ref);
       const cloud = snap.exists() ? snap.data() : {};
       const allData = { ...(cloud.profileData || {}), [activeProfileId]: localData };
-      transaction.set(ref, { profiles, activeProfileId, profileData: allData, updatedAt: serverTimestamp() });
+      // 일반 학습 기록 저장에서는 클라우드의 최신 프로필 목록을 보존합니다.
+      // 오래 열린 다른 기기의 오래된 profiles 배열이 새 프로필을 덮어쓰지 않게 합니다.
+      const cloudProfiles = Array.isArray(cloud.profiles) && cloud.profiles.length
+        ? cloud.profiles
+        : profiles;
+      transaction.set(ref, {
+        profiles: cloudProfiles,
+        activeProfileId,
+        profileData: allData,
+        updatedAt: serverTimestamp()
+      });
+      profiles = cloudProfiles.map(p => ({id:String(p.id), name:String(p.name || '프로필')}));
       lastCloudData = localData;
     });
     status(`☁️ 로그인됨 · ${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'} 기록 저장 완료`);

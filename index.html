@@ -290,7 +290,9 @@ import {
 import {
   getFirestore, doc, getDoc, setDoc, runTransaction, serverTimestamp, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
+import {
+  getMessaging, getToken, onMessage, isSupported
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDT_gTnwBSghvmPQ2s0hcmW9XNqYjV7Pqg",
@@ -304,8 +306,54 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const FCM_VAPID_KEY = 'BL6rpvpeqrSmJpY9ZCCXbjUS8BowAix-TykgDkkfq-C3HC4UoWqMyNTuhl65Q56U_n68r94lmpAx78Vw2Q1Jqkc';
 const db = getFirestore(app);
+const VAPID_PUBLIC_KEY = 'BL6rpvpeqrSmJpY9ZCCXbjUS8BowAix-TykgDkkfq-C3HC4UoWqMyNTuhl65Q56U_n68r94lmpAx78Vw2Q1Jqkc';
+let messagingInstance = null;
+let foregroundMessageBound = false;
+const DEVICE_ID_KEY = 'ilbbangFcmDeviceId';
+function getStableDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = 'device_' + (crypto.randomUUID ? crypto.randomUUID().replaceAll('-', '') : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+async function registerPushDevice() {
+  const out = $login('notifyStatus');
+  if (!currentUid || !syncReady) { out.textContent = '공용 계정 로그인이 완료된 뒤 다시 저장해 주세요.'; return false; }
+  if (!('serviceWorker' in navigator)) { out.textContent = '이 브라우저는 푸시 서비스워커를 지원하지 않아요.'; return false; }
+  try {
+    if (!(await isSupported())) { out.textContent = '이 브라우저에서는 Firebase 웹 푸시를 지원하지 않아요.'; return false; }
+    const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (permission !== 'granted') { out.textContent = '휴대폰 알림 권한이 허용되지 않았어요.'; return false; }
+    const registration = await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
+    if (!messagingInstance) messagingInstance = getMessaging(app);
+    const token = await getToken(messagingInstance, { vapidKey: VAPID_PUBLIC_KEY, serviceWorkerRegistration: registration });
+    if (!token) { out.textContent = 'FCM 토큰을 발급받지 못했어요. 크롬 알림 권한과 서비스워커를 확인해 주세요.'; return false; }
+    const profile = profiles.find(p => p.id === activeProfileId);
+    const deviceRef = doc(db, 'ilbbangUsers', currentUid, 'privateSettings', getStableDeviceId());
+    await setDoc(deviceRef, { token, profileId: activeProfileId, profileName: profile?.name || '가족', updatedAt: serverTimestamp(), platform: 'web' }, { merge: true });
+    if (!foregroundMessageBound) {
+      onMessage(messagingInstance, payload => {
+        const title = payload.notification?.title || '일빵빵 가족 알림';
+        const body = payload.notification?.body || '오늘의 영어 학습을 확인해 주세요.';
+        out.textContent = `${title} · ${body}`;
+        if (document.visibilityState === 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+          try { new Notification(title, { body, icon: './icon-192.png', tag: payload.data?.tag || 'ilbbang-family' }); } catch (_) {}
+        }
+      });
+      foregroundMessageBound = true;
+    }
+    out.textContent = '이 휴대폰 푸시 연결이 완료됐어요. 이제 가족 알림을 받을 수 있어요.';
+    return true;
+  } catch (err) {
+    console.error('FCM device registration failed:', err);
+    out.textContent = '푸시 연결 실패: ' + (err.code || err.message || '알 수 없는 오류');
+    return false;
+  }
+}
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
   'ilbbangSeq600Review', 'ilbbangSeqVoiceRate',
@@ -448,27 +496,6 @@ function applySnapshot(data) {
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
 const notifySettingsRef = () => currentUid ? doc(db, 'ilbbangUsers', currentUid, 'privateSettings', 'notifications') : null;
-const FCM_DEVICE_KEY = 'ilbbangFcmDeviceId';
-function getFcmDeviceId() {
-  let id = localStorage.getItem(FCM_DEVICE_KEY);
-  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)); localStorage.setItem(FCM_DEVICE_KEY, id); }
-  return id;
-}
-async function registerFcmDevice() {
-  if (!currentUid || !parentNotifySettings.enabled || !('Notification' in window) || Notification.permission !== 'granted') return;
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    const messaging = getMessaging(app);
-    const token = await getToken(messaging, { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: registration });
-    if (!token) throw new Error('푸시 토큰을 발급받지 못했어요.');
-    const profile = profiles.find(item => item.id === activeProfileId);
-    const deviceRef = doc(db, 'ilbbangUsers', currentUid, 'privateSettings', 'device_' + getFcmDeviceId());
-    await setDoc(deviceRef, { token, profileId: activeProfileId, profileName: profile?.name || '프로필', updatedAt: serverTimestamp() }, { merge: true });
-    $login('notifyStatus').textContent = '이 휴대폰의 푸시 연결이 완료됐어요.';
-  } catch (err) {
-    $login('notifyStatus').textContent = '푸시 연결 실패: ' + err.message;
-  }
-}
 async function hashParentPin(pin) {
   const bytes = new TextEncoder().encode('ilbbang-parent-pin-v1:' + pin);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -535,17 +562,12 @@ $login('notifySave').onclick = async () => {
   if (!parentSettingsUnlocked) return;
   const enabled = $login('notifyEnabled').checked;
   if (enabled && !('Notification' in window)) { $login('notifyStatus').textContent = '이 브라우저는 알림을 지원하지 않아요.'; return; }
-  if (enabled && Notification.permission === 'default') {
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') { $login('notifyStatus').textContent = '휴대폰 알림 권한을 허용해야 알림을 받을 수 있어요.'; return; }
-  }
-  if (enabled && Notification.permission !== 'granted') { $login('notifyStatus').textContent = '휴대폰 설정에서 이 앱의 알림을 허용해 주세요.'; return; }
   parentNotifySettings = {...parentNotifySettings,enabled,time:$login('notifyTime').value || '19:00',sound:$login('notifySound').checked,lockscreen:$login('notifyLockscreen').value};
   try {
     await setDoc(notifySettingsRef(), parentNotifySettings);
-    $login('notifyStatus').textContent = '가족 공통 설정을 저장했어요. 이 휴대폰의 푸시 연결을 확인합니다.';
-    if (enabled) await registerFcmDevice();
-  } catch (err) { $login('notifyStatus').textContent = '저장 실패: ' + err.message + ' · Firestore 보안 규칙을 확인해 주세요.'; }
+    if (enabled) await registerPushDevice();
+    else $login('notifyStatus').textContent = '가족 알림을 껐어요. 기기 등록 정보는 유지되며 발송 대상에서 제외됩니다.';
+  } catch (err) { $login('notifyStatus').textContent = '저장 또는 푸시 연결 실패: ' + (err.code || err.message) + ' · Firestore 보안 규칙을 확인해 주세요.'; }
 };
 
 function updateProfileControls() {
@@ -656,7 +678,6 @@ async function loadAndMergeCloud(user) {
     }
     updateProfileControls();
     await loadParentNotifySettings();
-    if (parentNotifySettings.enabled && Notification.permission === 'granted') await registerFcmDevice();
     if (stopCloudListener) stopCloudListener();
     stopCloudListener = onSnapshot(ref, cloudSnap => {
       if (!syncReady || !cloudSnap.exists() || switchingProfile) return;
@@ -708,7 +729,6 @@ async function switchProfile(nextId) {
     lastCloudData = selected;
     updateProfileControls();
     status(`☁️ ${profiles.find(p=>p.id===nextId)?.name || '프로필'} 프로필로 전환했어요.`);
-    await registerFcmDevice();
   } catch (error) {
     message('프로필 전환 실패: ' + error.message);
     $login('profileSelect').value = activeProfileId;
@@ -731,7 +751,6 @@ $login('addProfile').onclick = async () => {
     await persistProfileState();
     lastCloudData = {};
     updateProfileControls();
-    await registerFcmDevice();
     status(`${name.trim()} 프로필을 만들었어요.`);
   } catch(error) { message('프로필 추가 실패: ' + error.message); }
 };

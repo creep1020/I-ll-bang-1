@@ -56,34 +56,56 @@ function makeMessage(name, slot, date) {
 async function main() {
   const now = kstParts();
   const users = await db.collection('ilbbangUsers').get();
-  let sent = 0, skipped = 0;
+  const stats = {
+    users: users.size, settingsMissing: 0, disabled: 0, outsideWindow: 0,
+    settingsActive: 0, deviceDocs: 0, deviceCandidates: 0, invalidDevices: 0,
+    missingProfiles: 0, completed: 0, alreadySent: 0, sent: 0, failed: 0
+  };
+  console.log(`START KST ${now.date} ${String(now.hour).padStart(2,'0')}:${String(now.minute).padStart(2,'0')} · userDocs=${stats.users}`);
+
   for (const userDoc of users.docs) {
     const settingsRef = userDoc.ref.collection('privateSettings').doc('notifications');
     const settingsSnap = await settingsRef.get();
-    if (!settingsSnap.exists) continue;
+    if (!settingsSnap.exists) { stats.settingsMissing++; continue; }
     const settings = settingsSnap.data();
-    if (!settings.enabled) continue;
-    const [startHourText, startMinuteText] = String(settings.time || '19:00').split(':');
-    const startMinutes = Number(startHourText) * 60 + Number(startMinuteText || 0);
+    if (settings.enabled !== true) { stats.disabled++; continue; }
+
+    const timeText = String(settings.time || '19:00');
+    const match = /^(\d{1,2}):(\d{2})$/.exec(timeText);
+    if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) {
+      console.log(`INVALID_SETTING time=${timeText}`);
+      stats.outsideWindow++;
+      continue;
+    }
+    const startMinutes = Number(match[1]) * 60 + Number(match[2]);
     const currentMinutes = now.hour * 60 + now.minute;
     const elapsed = currentMinutes - startMinutes;
-    if (elapsed < 0 || elapsed >= 180) continue;
+    if (elapsed < 0 || elapsed >= 180) {
+      stats.outsideWindow++;
+      console.log(`OUTSIDE_WINDOW setting=${timeText} now=${String(now.hour).padStart(2,'0')}:${String(now.minute).padStart(2,'0')} elapsedMin=${elapsed}`);
+      continue;
+    }
+    stats.settingsActive++;
     const slot = Math.floor(elapsed / 60);
-    if (slot < 0 || slot > 2) continue;
 
     const userData = userDoc.data();
     const profiles = Array.isArray(userData.profiles) ? userData.profiles : [];
     const profileDataMap = userData.profileData || {};
     const deviceSnaps = await userDoc.ref.collection('privateSettings').get();
-    for (const deviceDoc of deviceSnaps.docs) {
-      if (!deviceDoc.id.startsWith('device_')) continue;
+    stats.deviceDocs += deviceSnaps.size;
+    const deviceDocs = deviceSnaps.docs.filter(d => d.id.startsWith('device_'));
+    stats.deviceCandidates += deviceDocs.length;
+    if (deviceDocs.length === 0) console.log('NO_DEVICE_DOCS: 알림 설정은 켜져 있지만 device_ 문서가 없습니다.');
+
+    for (const deviceDoc of deviceDocs) {
       const device = deviceDoc.data();
-      if (!device.token || !device.profileId) continue;
+      if (!device.token || !device.profileId) { stats.invalidDevices++; console.log('INVALID_DEVICE: token 또는 profileId 누락'); continue; }
       const pData = profileDataMap[device.profileId];
-      if (!pData || hasCompletedToday(pData, now.date)) { skipped++; continue; }
+      if (!pData) { stats.missingProfiles++; console.log('MISSING_PROFILE_DATA: 기기 profileId와 profileData 키가 일치하지 않습니다.'); continue; }
+      if (hasCompletedToday(pData, now.date)) { stats.completed++; continue; }
       const sentSlots = device.sentSlots || {};
       const sentKey = `${now.date}_${slot}`;
-      if (sentSlots[sentKey]) { skipped++; continue; }
+      if (sentSlots[sentKey]) { stats.alreadySent++; continue; }
       const profile = profiles.find(p => p.id === device.profileId);
       const name = String(profile?.name || device.profileName || '가족').slice(0, 20);
       const fullBody = makeMessage(name, slot, now.date);
@@ -98,16 +120,18 @@ async function main() {
           }
         });
         await deviceDoc.ref.set({ sentSlots: { ...sentSlots, [sentKey]: true }, lastSentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        sent++;
+        stats.sent++;
       } catch (err) {
+        stats.failed++;
+        console.error(`SEND_FAILED code=${err.code || 'unknown'} message=${err.message}`);
         if (err.code === 'messaging/registration-token-not-registered' || err.code === 'messaging/invalid-registration-token') {
           await deviceDoc.ref.delete();
-        } else {
-          console.error(`Send failed for ${deviceDoc.id}:`, err.message);
+          console.log('INVALID_TOKEN_DEVICE_DELETED');
         }
       }
     }
   }
-  console.log(`KST ${now.date} ${String(now.hour).padStart(2,'0')}:${String(now.minute).padStart(2,'0')} · sent=${sent} skipped=${skipped}`);
+
+  console.log(`SUMMARY KST ${now.date} ${String(now.hour).padStart(2,'0')}:${String(now.minute).padStart(2,'0')} · ${Object.entries(stats).map(([k,v]) => `${k}=${v}`).join(' ')}`);
 }
 main().then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1); });

@@ -290,6 +290,7 @@ import {
 import {
   getFirestore, doc, getDoc, setDoc, runTransaction, serverTimestamp, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDT_gTnwBSghvmPQ2s0hcmW9XNqYjV7Pqg",
@@ -303,6 +304,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const FCM_VAPID_KEY = 'BL6rpvpeqrSmJpY9ZCCXbjUS8BowAix-TykgDkkfq-C3HC4UoWqMyNTuhl65Q56U_n68r94lmpAx78Vw2Q1Jqkc';
 const db = getFirestore(app);
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
@@ -446,6 +448,27 @@ function applySnapshot(data) {
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
 const notifySettingsRef = () => currentUid ? doc(db, 'ilbbangUsers', currentUid, 'privateSettings', 'notifications') : null;
+const FCM_DEVICE_KEY = 'ilbbangFcmDeviceId';
+function getFcmDeviceId() {
+  let id = localStorage.getItem(FCM_DEVICE_KEY);
+  if (!id) { id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)); localStorage.setItem(FCM_DEVICE_KEY, id); }
+  return id;
+}
+async function registerFcmDevice() {
+  if (!currentUid || !parentNotifySettings.enabled || !('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const messaging = getMessaging(app);
+    const token = await getToken(messaging, { vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: registration });
+    if (!token) throw new Error('푸시 토큰을 발급받지 못했어요.');
+    const profile = profiles.find(item => item.id === activeProfileId);
+    const deviceRef = doc(db, 'ilbbangUsers', currentUid, 'privateSettings', 'device_' + getFcmDeviceId());
+    await setDoc(deviceRef, { token, profileId: activeProfileId, profileName: profile?.name || '프로필', updatedAt: serverTimestamp() }, { merge: true });
+    $login('notifyStatus').textContent = '이 휴대폰의 푸시 연결이 완료됐어요.';
+  } catch (err) {
+    $login('notifyStatus').textContent = '푸시 연결 실패: ' + err.message;
+  }
+}
 async function hashParentPin(pin) {
   const bytes = new TextEncoder().encode('ilbbang-parent-pin-v1:' + pin);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -520,7 +543,8 @@ $login('notifySave').onclick = async () => {
   parentNotifySettings = {...parentNotifySettings,enabled,time:$login('notifyTime').value || '19:00',sound:$login('notifySound').checked,lockscreen:$login('notifyLockscreen').value};
   try {
     await setDoc(notifySettingsRef(), parentNotifySettings);
-    $login('notifyStatus').textContent = '가족 공통 설정을 저장했어요. 각 휴대폰에서 알림 권한을 허용해야 합니다. 앱이 닫힌 상태의 정시 알림은 푸시 서버 연결 후 작동합니다.';
+    $login('notifyStatus').textContent = '가족 공통 설정을 저장했어요. 이 휴대폰의 푸시 연결을 확인합니다.';
+    if (enabled) await registerFcmDevice();
   } catch (err) { $login('notifyStatus').textContent = '저장 실패: ' + err.message + ' · Firestore 보안 규칙을 확인해 주세요.'; }
 };
 
@@ -632,6 +656,7 @@ async function loadAndMergeCloud(user) {
     }
     updateProfileControls();
     await loadParentNotifySettings();
+    if (parentNotifySettings.enabled && Notification.permission === 'granted') await registerFcmDevice();
     if (stopCloudListener) stopCloudListener();
     stopCloudListener = onSnapshot(ref, cloudSnap => {
       if (!syncReady || !cloudSnap.exists() || switchingProfile) return;
@@ -683,6 +708,7 @@ async function switchProfile(nextId) {
     lastCloudData = selected;
     updateProfileControls();
     status(`☁️ ${profiles.find(p=>p.id===nextId)?.name || '프로필'} 프로필로 전환했어요.`);
+    await registerFcmDevice();
   } catch (error) {
     message('프로필 전환 실패: ' + error.message);
     $login('profileSelect').value = activeProfileId;
@@ -705,6 +731,7 @@ $login('addProfile').onclick = async () => {
     await persistProfileState();
     lastCloudData = {};
     updateProfileControls();
+    await registerFcmDevice();
     status(`${name.trim()} 프로필을 만들었어요.`);
   } catch(error) { message('프로필 추가 실패: ' + error.message); }
 };

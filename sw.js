@@ -1,4 +1,5 @@
-const CACHE = 'ilppang-seq-v2';
+
+const CACHE = 'ilppang-seq-v3';
 
 const FILES = [
   './',

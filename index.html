@@ -347,7 +347,12 @@ function startReviewSpeaking(){
    setTimeout(()=>{if(remaining.length){reviewCurrentNo=remaining[0].no;render();}else{reviewCurrentNo=null;render();}},900);
   }else{
    if(mode==='scheduled'){
-    const schedule=reviewSchedule(),entry=schedule[item.no]||{stage:0,addedAt:iso(today),attempts:0};entry.attempts=(entry.attempts||0)+1;entry.dueDate=addDaysISO(iso(today),1);schedule[item.no]=entry;writeMap(REVIEW_SCHEDULE_KEY,schedule);
+    // 오답이어도 복습을 다음 날로 미루지 않습니다. 오늘 통과할 때까지
+    // dueDate를 유지해 새 학습/오늘 학습완료가 잠금 해제되지 않게 합니다.
+    const schedule=reviewSchedule(),entry=schedule[item.no]||{stage:0,dueDate:iso(today),addedAt:iso(today),attempts:0};
+    entry.attempts=(entry.attempts||0)+1;
+    if(!entry.dueDate||entry.dueDate>iso(today))entry.dueDate=iso(today);
+    schedule[item.no]=entry;writeMap(REVIEW_SCHEDULE_KEY,schedule);
    }
    $('reviewFeedback').textContent=spoken?`아직 문장이 달라요. 인식된 문장: “${spoken}” · 다시 말해 보세요.`:'잘 들리지 않았어요. 마이크 가까이에서 다시 말해 주세요.';
    if(mode==='daily'){renderReviewGate(todayDailyReviewItems(),mode);}else{setTimeout(()=>render(),850);}

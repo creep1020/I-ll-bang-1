@@ -57,6 +57,25 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 .mg-lane{width:30%!important;height:112px!important;font-size:30px!important;background:linear-gradient(#fff,#e7e4dc)!important}
 .mg-action{background:#e8efdf!important;border-color:#b8cba8!important;font-weight:900}
 @media(max-height:720px){#miniGameCard{padding:12px}#mgBoard{min-height:205px;margin:8px 0}.mg-card{height:58px!important}}
+
+/* Heart Crossing dual modes */
+#heartModePicker{display:none;gap:12px;grid-template-columns:1fr 1fr;margin:14px 0}
+#heartModePicker.show{display:grid}
+.heart-mode{border:2px solid #f0c6d5!important;border-radius:20px!important;background:linear-gradient(160deg,#fff,#fff0f5)!important;padding:14px 10px!important;min-height:142px;box-shadow:0 5px 0 #f1d7e1!important;color:#6d4055!important}
+.heart-mode:active{transform:translateY(3px);box-shadow:0 2px 0 #f1d7e1!important}
+.heart-mode .hm-emoji{display:block;font-size:36px;margin-bottom:6px}
+.heart-mode b{display:block;font-size:15px;margin-bottom:5px}
+.heart-mode small{display:block;font-size:11px;line-height:1.4;color:#987487}
+#heartCutWrap{display:none;width:100%}#heartCutWrap.show{display:block}
+#heartCanvas{display:block;width:100%;max-width:390px;height:auto;aspect-ratio:360/430;margin:0 auto;border-radius:22px;background:#fff4f8;touch-action:manipulation;box-shadow:inset 0 0 0 1px #f3d5e1}
+#heartTownMeta{display:flex;justify-content:space-between;gap:8px;max-width:390px;margin:0 auto 8px;font-size:12px;color:#986a7e}
+#heartFullWrap{display:none;width:100%;height:min(66dvh,620px);border-radius:18px;overflow:hidden;background:#fff0f5;border:1px solid #f0c6d5}
+#heartFullWrap.show{display:block}
+#heartFullFrame{width:100%;height:100%;border:0;background:#fff}
+#heartModeBack{display:none;margin:8px auto 0;background:#fff0f5;border-color:#f0c6d5;color:#87536b}
+#heartModeBack.show{display:block}
+@media(max-width:390px){#heartModePicker{gap:8px}.heart-mode{padding:11px 7px!important;min-height:132px}.heart-mode .hm-emoji{font-size:31px}}
+
 </style></head>
  <script>
 if ('serviceWorker' in navigator) {
@@ -115,6 +134,16 @@ if ('serviceWorker' in navigator) {
   <div class="kicker">ILPPANGPPANG · DAILY ARCADE</div>
   <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span id="mgMode" class="small">오늘의 미니게임</span><span id="mgTimer">02:00</span></div>
   <h2 id="mgTitle">오늘의 게임</h2><p id="mgDesc" class="mg-sub">2분 동안 최고 기록에 도전!</p>
+  <div id="heartModePicker">
+   <button class="heart-mode" id="heartCutBtn" type="button"><span class="hm-emoji">💗</span><b>횡단 미션만</b><small>하트가 차를 피해 건너요<br>짧고 가벼운 보상 게임</small></button>
+   <button class="heart-mode" id="heartFullBtn" type="button"><span class="hm-emoji">🏡</span><b>마을 전체판</b><small>횡단 + 집·정원·가구 꾸미기<br>원본 게임 그대로</small></button>
+  </div>
+  <div id="heartCutWrap">
+   <div id="heartTownMeta"><span>💎 티켓 <b id="heartTickets">0</b></span><span>🏆 최고 기록 <b id="heartBest">0</b></span></div>
+   <canvas id="heartCanvas" width="360" height="430" aria-label="하트 횡단 미션"></canvas>
+  </div>
+  <div id="heartFullWrap"><iframe id="heartFullFrame" title="Heart Crossing 전체 게임" loading="lazy" allow="autoplay; fullscreen"></iframe></div>
+  <button id="heartModeBack" type="button">← 게임 선택으로</button>
   <div id="mgStats"><div class="mg-stat">점수<b id="mgScore">0</b></div><div class="mg-stat">콤보<b id="mgCombo">0</b></div><div class="mg-stat">레벨<b id="mgLevel">1</b></div><div class="mg-stat">최고 기록<b id="mgBest">0</b></div></div>
   <div id="mgBoard"></div>
   <div id="mgControls"><button id="mgStart" class="primary">게임 시작</button><button id="mgSound" type="button">🔊 소리 켬</button><button id="mgSkip" type="button">건너뛰기</button></div>
@@ -889,6 +918,53 @@ onAuthStateChanged(auth, async user => {
   {id:'dodge',name:'별 수집 대작전',desc:'별이 있는 길을 고르고 폭탄이 있는 길은 피하세요!',init:dodge}
  ];
  let game,score=0,seconds=120,tick=null,active=false,bonus=false,combo=0,level=1,startedAt=0,sound=true,boostUntil=0,round=0,gameTimers=[];
+ let heartMode='';
+ const HEART_GAME_URL='https://designowpro-debug.github.io/heart-crossing-game/';
+ const heartSaveKey=()=>`ilbbangHeartCrossing_${profile()}`;
+ let heartState=null,heartAnim=0,heartLast=0,heartCars=[],heartFrame=0,heartRunning=false;
+ const heartCanvas=$('heartCanvas'),heartCtx=heartCanvas?.getContext('2d');
+ function loadHeartState(){try{return JSON.parse(localStorage.getItem(heartSaveKey())||'{}')}catch(e){return {}}}
+ function saveHeartState(){if(!heartState)return;try{localStorage.setItem(heartSaveKey(),JSON.stringify(heartState));$('heartTickets').textContent=heartState.tickets||0;$('heartBest').textContent=heartState.best||0;}catch(e){}}
+ function heartStart(){
+   heartMode='cut';heartState=loadHeartState();heartState.tickets=Number(heartState.tickets||0);heartState.best=Number(heartState.best||0);heartState.unlocked=heartState.unlocked||[];saveHeartState();
+   $('heartModePicker').classList.remove('show');$('heartCutWrap').classList.add('show');$('heartFullWrap').classList.remove('show');$('heartModeBack').classList.add('show');$('mgStats').style.display='grid';$('mgBoard').style.display='none';
+   score=0;combo=0;level=1;heartCars=[];heartFrame=0;heartRunning=true;heartLast=0;heartDraw();start();
+ }
+ function heartFull(){
+   heartMode='full';$('heartModePicker').classList.remove('show');$('heartCutWrap').classList.remove('show');$('heartFullWrap').classList.add('show');$('heartModeBack').classList.add('show');$('mgStats').style.display='none';$('mgBoard').style.display='none';
+   $('heartFullFrame').src=HEART_GAME_URL;score=0;combo=0;level=1;start();
+ }
+ function heartBack(){heartRunning=false;cancelAnimationFrame(heartAnim);$('heartFullFrame').src='about:blank';$('heartCutWrap').classList.remove('show');$('heartFullWrap').classList.remove('show');$('heartModeBack').classList.remove('show');$('mgStats').style.display='grid';$('mgBoard').style.display='flex';$('heartModePicker').classList.add('show');clearInterval(tick);active=false;}
+ function heartDraw(){
+   if(!heartCtx)return;const c=heartCtx,w=360,h=430;c.clearRect(0,0,w,h);
+   const sky=c.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#fff4f8');sky.addColorStop(1,'#ffe5ef');c.fillStyle=sky;c.fillRect(0,0,w,h);
+   // sidewalk and road
+   c.fillStyle='#f8dce8';c.fillRect(0,0,w,74);c.fillRect(0,356,w,74);
+   c.fillStyle='#9b9aa9';c.fillRect(0,74,w,282);
+   c.fillStyle='#aaa9b6';for(let y=84;y<350;y+=66){c.fillRect(0,y,w,2)}
+   c.fillStyle='#fff';for(let y=94;y<350;y+=66){for(let x=10;x<360;x+=48)c.fillRect(x,y,25,5)}
+   // traffic lights
+   c.fillStyle='#63515e';roundRect(c,12,13,42,49,13);c.fill();c.fillStyle=heartFrame%100<58?'#ff697f':'#c5b7c0';c.beginPath();c.arc(33,29,8,0,Math.PI*2);c.fill();c.fillStyle=heartFrame%100>=58?'#71c995':'#c5b7c0';c.beginPath();c.arc(33,47,7,0,Math.PI*2);c.fill();
+   // flowers and bushes
+   for(let x=86;x<350;x+=66){c.fillStyle='#a5d6a7';c.beginPath();c.arc(x,37,13,0,Math.PI*2);c.fill();c.fillStyle='#ffb3c8';c.beginPath();c.arc(x-4,31,4,0,Math.PI*2);c.arc(x+4,31,4,0,Math.PI*2);c.arc(x,25,4,0,Math.PI*2);c.fill();}
+   // cars
+   heartCars.forEach(car=>{c.save();c.translate(car.x,car.y);c.fillStyle=car.color;roundRect(c,-24,-15,48,30,10);c.fill();c.fillStyle='#fff';roundRect(c,-13,-10,25,10,5);c.fill();c.fillStyle='#64515d';c.beginPath();c.arc(-13,14,5,0,Math.PI*2);c.arc(14,14,5,0,Math.PI*2);c.fill();c.restore()});
+   // player heart
+   const py=heartState.y??330;c.save();c.translate(180,py);c.fillStyle='#f05b91';c.beginPath();c.moveTo(0,14);c.bezierCurveTo(-36,-8,-23,-34,-4,-25);c.bezierCurveTo(4,-31,28,-27,26,-8);c.bezierCurveTo(24,1,13,10,0,14);c.fill();c.fillStyle='#fff';c.beginPath();c.arc(-7,-12,3,0,Math.PI*2);c.arc(8,-12,3,0,Math.PI*2);c.fill();c.restore();
+   c.fillStyle='#7d5368';c.font='bold 14px system-ui';c.textAlign='center';c.fillText('화면을 탭해서 한 칸씩 건너가요!',180,405);
+   c.font='bold 18px system-ui';c.fillStyle='#fff';c.fillText('💗 '+score,305,31);
+ }
+ function roundRect(c,x,y,w,h,r){c.beginPath();c.roundRect(x,y,w,h,r)}
+ function heartTick(ts){if(!heartRunning||!active)return;const dt=Math.min(40,ts-(heartLast||ts));heartLast=ts;heartFrame+=dt/16;
+   heartCars.forEach(car=>{car.x+=car.v*dt/16});heartCars=heartCars.filter(car=>car.x>-70&&car.x<430);
+   if(Math.floor(heartFrame)%46===0&&heartCars.length<7){const lane=1+Math.floor(Math.random()*4);const fromLeft=Math.random()<.5;heartCars.push({x:fromLeft?-55:415,y:82+lane*54,v:(fromLeft?1:-1)*(2.1+Math.random()*1.4),color:['#ff9aab','#8cc8ed','#f6c76c','#a8d9b1','#c3a5e8'][Math.floor(Math.random()*5)]})}
+   const y=heartState.y??330;const hit=heartCars.some(car=>Math.abs(car.x-180)<33&&Math.abs(car.y-y)<25);if(hit){heartState.y=330;combo=0;miss('앗! 자동차에 부딪혔어요. 다시 도전!')}
+   heartDraw();heartAnim=requestAnimationFrame(heartTick);
+ }
+ function heartMove(){if(!active||heartMode!=='cut')return;const y=heartState.y??330;if(y<=95){combo++;heartState.tickets++;heartState.y=330;add(10);heartState.best=Math.max(heartState.best,score);saveHeartState();feedback('🎟 마을 꾸미기 티켓 획득!',true)}else{heartState.y=y-54;score+=1;heartDraw();} }
+ heartCanvas?.addEventListener('pointerdown',e=>{e.preventDefault();heartMove()});
+ $('heartCutBtn').onclick=heartStart;$('heartFullBtn').onclick=heartFull;$('heartModeBack').onclick=heartBack;
+
  const profile=()=>localStorage.getItem('ilbbangActiveProfileId')||'device';
  const bestKey=()=>`ilbbangMiniBest_${profile()}_${game?.id||'all'}`;
  const starsKey=()=>`ilbbangMiniStars_${profile()}`;
@@ -902,17 +978,17 @@ onAuthStateChanged(auth, async user => {
  function add(points=1){if(!active)return;combo++;const mult=Date.now()<boostUntil?2:1;const bonusPts=combo>0&&combo%5===0?5:0;score+=points*mult+bonusPts;updateHUD();beep(520+Math.min(combo,12)*35,.06);vibrate();if(combo>0&&combo%8===0){boostUntil=Date.now()+8000;feedback('⚡ 8콤보 아이템 획득! 8초간 점수 2배!',true)}else if(combo%5===0)feedback(`🔥 ${combo}콤보! 보너스 +5점`,true);else feedback(mult===2?'⚡ 더블 점수!':`좋아! ${combo}콤보`,true);}
  function miss(msg='아깝다! 콤보가 끊겼어요.'){if(!active)return;combo=0;updateHUD();feedback(msg,false);beep(180,.12,'triangle');vibrate(45);}
  function levelNow(){return Math.min(5,1+Math.floor((Date.now()-startedAt)/((bonus?15:30)*1000)));}
- function open(isBonus=false){bonus=isBonus;game=isBonus?games[Math.floor(Math.random()*games.length)]:choose();seconds=isBonus?60:120;score=0;combo=0;level=1;round=0;active=false;boostUntil=0;clearInterval(tick);clearGameTimers();$('mgMode').textContent=isBonus?'🎁 학습 완료 보너스':'🎮 오늘의 데일리 게임';$('mgTimer').textContent=fmt(seconds);$('mgTitle').textContent=game.name;$('mgDesc').textContent=game.desc;$('mgBest').textContent=localStorage.getItem(bestKey())||0;$('mgStart').style.display='none';$('mgSkip').style.display='inline-block';$('mgProgressBar').style.width='100%';$('mgProgressBar').style.background='linear-gradient(90deg,#7fa66e,#e5b34f)';$('mgFeedback').className='small mg-toast';feedback('게임 준비 중!',true);board.innerHTML='<div class="mg-big">🎮</div>';layer.classList.add('show');setTimeout(start,350);updateHUD();}
+ function open(isBonus=false){bonus=isBonus;game={id:'heartcrossing',name:'하트 타운',desc:'횡단 미션 또는 마을 전체판을 선택하세요.'};seconds=isBonus?60:120;score=0;combo=0;level=1;round=0;active=false;heartRunning=false;heartMode='';boostUntil=0;clearInterval(tick);clearGameTimers();cancelAnimationFrame(heartAnim);$('heartFullFrame').src='about:blank';$('heartCutWrap').classList.remove('show');$('heartFullWrap').classList.remove('show');$('heartModeBack').classList.remove('show');$('mgStats').style.display='grid';$('mgBoard').style.display='flex';$('mgMode').textContent=isBonus?'🎁 학습 완료 보너스':'🎮 오늘의 데일리 게임';$('mgTimer').textContent=fmt(seconds);$('mgTitle').textContent='💗 하트 타운';$('mgDesc').textContent='오늘은 어떤 방식으로 마을을 만나볼까요?';$('mgBest').textContent=localStorage.getItem(bestKey())||0;$('mgStart').style.display='none';$('mgSkip').style.display='inline-block';$('mgProgressBar').style.width='100%';$('mgProgressBar').style.background='linear-gradient(90deg,#f08bb0,#e5b34f)';$('mgFeedback').className='small mg-toast';feedback('두 가지 버전을 준비했어요!',true);board.style.display='none';$('heartModePicker').classList.add('show');layer.classList.add('show');updateHUD();}
  function choose(){let n=0;for(const c of today)n=(n*31+c.charCodeAt(0))>>>0;return games[n%games.length];}
- function start(){if(active)return;active=true;startedAt=Date.now();$('mgStart').style.display='none';game.init();tick=setInterval(()=>{if(!active)return;seconds--;level=levelNow();$('mgLevel').textContent=level;$('mgTimer').textContent=fmt(seconds);$('mgProgressBar').style.width=(seconds/(bonus?60:120)*100)+'%';if(seconds<=20){$('mgTimer').classList.add('mg-frenzy');$('mgProgressBar').style.background='linear-gradient(90deg,#e45b4c,#f1b24b)';if(seconds%2===0)beep(260,.04,'square');}if(seconds<=0)finish();},1000);}
- function finish(){if(!active)return;active=false;clearInterval(tick);clearGameTimers();const old=Number(localStorage.getItem(bestKey())||0);if(score>old)localStorage.setItem(bestKey(),String(score));const earned=score>=100?3:score>=45?2:score>=15?1:0;const total=Number(localStorage.getItem(starsKey())||0)+earned;localStorage.setItem(starsKey(),String(total));$('mgTimer').classList.remove('mg-frenzy');$('mgTitle').textContent=earned===3?'🏆 완벽한 플레이!':'🎉 도전 완료!';$('mgDesc').textContent='다음 판에는 기록을 넘어보세요!';board.innerHTML=`<div class="mg-result"><div class="mg-stars">${'⭐'.repeat(earned)}${'☆'.repeat(3-earned)}</div>획득 점수<br><span style="font-size:46px;color:#a66a12">${score}</span><br>최고 기록 ${Math.max(old,score)}점<br><small>이번 획득 별 ${earned}개 · 누적 별 ${total}개</small></div>`;feedback(bonus?'보너스 게임 완료!':'이제 오늘의 영어 문장을 만나볼까요?',true);$('mgStart').style.display='inline-block';$('mgStart').textContent='학습 화면으로 이동';$('mgSkip').style.display='none';$('mgStart').onclick=closeToStudy;beep(earned===3?880:660,.25);}
- function closeToStudy(){clearInterval(tick);clearGameTimers();layer.classList.remove('show');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';$('mgStart').onclick=start;$('mgTimer').classList.remove('mg-frenzy');window.scrollTo({top:0,behavior:'smooth'});}
+ function start(){if(active)return;active=true;startedAt=Date.now();$('mgStart').style.display='none';if(heartMode==='cut'){heartState.y=330;heartLast=0;heartAnim=requestAnimationFrame(heartTick);}tick=setInterval(()=>{if(!active)return;seconds--;level=levelNow();$('mgLevel').textContent=level;$('mgTimer').textContent=fmt(seconds);$('mgProgressBar').style.width=(seconds/(bonus?60:120)*100)+'%';if(seconds<=20){$('mgTimer').classList.add('mg-frenzy');$('mgProgressBar').style.background='linear-gradient(90deg,#e45b4c,#f1b24b)';if(seconds%2===0)beep(260,.04,'square');}if(seconds<=0)finish();},1000);}
+ function finish(){if(!active)return;active=false;heartRunning=false;cancelAnimationFrame(heartAnim);$('heartFullFrame').src='about:blank';$('heartModePicker').classList.remove('show');$('heartCutWrap').classList.remove('show');$('heartFullWrap').classList.remove('show');$('heartModeBack').classList.remove('show');$('mgStats').style.display='grid';$('mgBoard').style.display='flex';if(heartMode==='cut'&&heartState){heartState.best=Math.max(Number(heartState.best||0),score);saveHeartState();}clearInterval(tick);clearGameTimers();const old=Number(localStorage.getItem(bestKey())||0);if(score>old)localStorage.setItem(bestKey(),String(score));const earned=score>=100?3:score>=45?2:score>=15?1:0;const total=Number(localStorage.getItem(starsKey())||0)+earned;localStorage.setItem(starsKey(),String(total));$('mgTimer').classList.remove('mg-frenzy');$('mgTitle').textContent=earned===3?'🏆 완벽한 플레이!':'🎉 도전 완료!';$('mgDesc').textContent='다음 판에는 기록을 넘어보세요!';board.innerHTML=`<div class="mg-result"><div class="mg-stars">${'⭐'.repeat(earned)}${'☆'.repeat(3-earned)}</div>획득 점수<br><span style="font-size:46px;color:#a66a12">${score}</span><br>최고 기록 ${Math.max(old,score)}점<br><small>이번 획득 별 ${earned}개 · 누적 별 ${total}개</small></div>`;feedback(bonus?'보너스 게임 완료!':'이제 오늘의 영어 문장을 만나볼까요?',true);$('mgStart').style.display='inline-block';$('mgStart').textContent='학습 화면으로 이동';$('mgSkip').style.display='none';$('mgStart').onclick=closeToStudy;beep(earned===3?880:660,.25);}
+ function closeToStudy(){clearInterval(tick);clearGameTimers();heartRunning=false;cancelAnimationFrame(heartAnim);$('heartFullFrame').src='about:blank';layer.classList.remove('show');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';$('mgStart').onclick=start;$('mgTimer').classList.remove('mg-frenzy');window.scrollTo({top:0,behavior:'smooth'});}
  function memory(){const icons=['🍎','🚗','🐱','⚽','🌈','🍕','🐼','🚀','🎸','🦊'];let deck=[...icons.slice(0,8),...icons.slice(0,8)].sort(()=>Math.random()-.5),opened=[],matched=0,locked=false;board.innerHTML=deck.map((v,i)=>`<button class="mg-card" data-i="${i}">❔</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||locked||b.disabled||opened.some(x=>x.b===b))return;const i=+b.dataset.i;b.textContent=deck[i];opened.push({b,v:deck[i]});beep(400,.04);if(opened.length===2){if(opened[0].v===opened[1].v){opened.forEach(x=>{x.b.disabled=true;x.b.classList.add('mg-hit')});matched+=2;add(8);opened=[];if(matched===deck.length){feedback('🌟 전부 찾았어요! 새 카드판 보너스!',true);add(20);matched=0;later(()=>{if(active)memory()},450)}}else{locked=true;miss('짝이 아니에요! 다음엔 기억해봐요.');const pair=opened;later(()=>{pair.forEach(x=>x.b.textContent='❔');opened=[];locked=false},650)}}});}
  function mole(){let target=-1,seq=0;const draw=()=>{if(!active)return;seq++;const r=Math.random();target=Math.floor(Math.random()*9);const type=r<.16?'💣':r<.34?'🌟':'🐹';board.innerHTML=Array.from({length:9},(_,i)=>`<button class="mg-target" data-i="${i}">${i===target?type:'🕳️'}</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;if(+b.dataset.i!==target){miss('빈 구멍! 다시 집중!');return;}if(type==='💣'){score=Math.max(0,score-3);combo=0;updateHUD();feedback('💥 폭탄이다! -3점',false);beep(130,.16,'sawtooth');vibrate(70)}else{add(type==='🌟'?5:2);if(type==='🌟')feedback('✨ 골드 두더지! +5점',true)}draw()});};draw();const loop=()=>{if(!active)return;draw();later(loop,Math.max(330,850-(level-1)*115));};later(loop,850);}
  function color(){const colors=[['빨강','#e95d54'],['파랑','#4e8ed8'],['노랑','#d9ae32'],['초록','#55a66a']];let target,mode;const draw=()=>{if(!active)return;round++;target=colors[Math.floor(Math.random()*4)];mode=Math.random()<.5?'word':'ink';const shown=colors[Math.floor(Math.random()*4)];board.innerHTML=`<div style="width:100%"><div class="small" style="font-weight:900;font-size:15px">${mode==='word'?'글자에 적힌 색깔을 고르세요':'글자 자체의 색깔을 고르세요'}</div><div class="mg-big" style="color:${mode==='word'?shown[1]:target[1]};margin:12px 0">${mode==='word'?target[0]:shown[0]}</div><div class="small">헷갈리지 말고 지시를 확인!</div><div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:12px">${colors.map(c=>`<button data-c="${c[0]}" style="background:${c[1]};color:white;font-weight:900">${c[0]}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;const answer=target[0];if(b.dataset.c===answer){add(3);draw()}else miss('색깔 함정! 지시문을 다시 확인!')});};draw();}
  function number(){let next=1,limit=12;const draw=()=>{if(!active)return;round++;let nums=Array.from({length:limit},(_,i)=>i+1).sort(()=>Math.random()-.5);board.innerHTML=`<div style="width:100%;text-align:center"><div class="small">이번 목표: <b style="font-size:20px;color:#a66a12">${next} → ${limit}</b></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px">${nums.map(n=>`<button data-n="${n}" style="width:100%">${n}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||b.disabled)return;if(+b.dataset.n===next){b.disabled=true;b.classList.add('mg-hit');add(1);next++;if(next>limit){feedback('🚀 세트 클리어! 다음 판은 더 빠르게!',true);add(10);next=1;later(draw,250)}}else miss(`${next}부터 찾아야 해요!`)});};draw();}
  function dodge(){let roundNo=0;const draw=()=>{if(!active)return;roundNo++;const safe=Math.floor(Math.random()*3),hazard=Math.random()<.35?Math.floor(Math.random()*3):-1;board.innerHTML=`<div style="width:100%"><div class="mg-big" style="font-size:36px">⭐ 별이 떨어진다!</div><div class="small">별이 있는 길을 선택하세요. 폭탄은 피하기!</div><div style="display:flex;justify-content:space-around;gap:7px;margin-top:16px">${[0,1,2].map(i=>`<button class="mg-lane" data-lane="${i}">${i===safe?'⭐':i===hazard?'💣':'☁️'}<br><small>${i+1}번 길</small></button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;const i=+b.dataset.lane;if(i===safe){add(4);feedback('별 획득! ✨',true)}else if(i===hazard){score=Math.max(0,score-4);combo=0;updateHUD();miss('💥 폭탄! -4점');}else{miss('별을 놓쳤어요!');}later(draw,350)});};draw();}
- $('mgStart').onclick=start;$('mgSkip').onclick=()=>{clearInterval(tick);clearGameTimers();active=false;layer.classList.remove('show');$('mgTimer').classList.remove('mg-frenzy');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';};
+ $('mgStart').onclick=start;$('mgSkip').onclick=()=>{clearInterval(tick);clearGameTimers();active=false;heartRunning=false;cancelAnimationFrame(heartAnim);$('heartFullFrame').src='about:blank';layer.classList.remove('show');$('mgTimer').classList.remove('mg-frenzy');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';};
  $('mgSound').onclick=()=>{sound=!sound;$('mgSound').textContent=sound?'🔊 소리 켬':'🔇 소리 끔';if(sound)beep(700,.08);};
  const bonusBtn=$('bonusGameBtn');if(bonusBtn)bonusBtn.onclick=()=>open(true);
  const launchKey=`ilbbangMiniLaunchedV2_${profile()}_${today}`;

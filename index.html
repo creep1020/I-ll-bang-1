@@ -449,6 +449,12 @@ panel.innerHTML = `
           <button id="pinUnlock" type="button" class="primary">잠금 해제</button>
         </div>
         <div id="parentSettingsArea" style="display:none;margin-top:12px">
+          <div style="margin:0 0 16px;padding:12px;border:1px solid #d8b6a8;border-radius:12px;background:#fffaf7">
+            <strong style="font-size:14px">📚 자녀 학습 기록 초기화</strong>
+            <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장별 체크와 날짜별 학습 완료 기록만 초기화합니다. 다른 프로필과 문장, 복습 목록, 별·보상, 게임 기록, 알림 설정은 유지됩니다.</div>
+            <button id="resetStudyRecords" type="button" style="border-color:#c66;color:#a33;width:100%">선택한 프로필의 학습 기록 초기화</button>
+            <div class="small" id="resetStudyStatus" style="margin-top:8px" aria-live="polite"></div>
+          </div>
           <label style="display:flex;gap:8px;align-items:center"><input id="notifyEnabled" type="checkbox"> 가족 알림 켜기</label>
           <label for="notifyTime" style="display:block;margin-top:10px">알림 시간</label>
           <input id="notifyTime" type="time" value="19:00" style="width:100%;margin:5px 0 8px">
@@ -458,12 +464,6 @@ panel.innerHTML = `
           <div class="small" style="margin:8px 0">표시 방식: 휴대폰 알림 + 앱 내부 축하 팝업</div>
           <button id="notifySave" type="button" class="primary">알림 설정 저장</button>
           <button id="parentLock" type="button">잠그기</button>
-          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
-            <strong style="font-size:14px">📚 자녀 학습 기록 초기화</strong>
-            <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장별 체크와 날짜별 학습 완료 기록만 초기화합니다. 문장, 프로필, 복습 목록, 별·보상, 게임 기록, 알림 설정은 유지됩니다.</div>
-            <button id="resetStudyRecords" type="button" style="border-color:#c66;color:#a33">선택한 프로필의 학습 기록 초기화</button>
-            <div class="small" id="resetStudyStatus" style="margin-top:8px" aria-live="polite"></div>
-          </div>
           <div class="small" id="notifyStatus" style="margin-top:8px" aria-live="polite"></div>
         </div>
       </div>

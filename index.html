@@ -6,7 +6,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fbf8f0">
-<title>일빵빵 1권 순차 학습 · 음성버전</title>
+<title>일빵빵 1권 순차 학습 · 말하기 복습</title>
 <style>
 :root{color-scheme:light;--paper:#fbf8f0;--ink:#28251f;--muted:#827b70;--line:#e7dfd2;--accent:#486b55;--soft:#edf3eb}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
@@ -28,6 +28,7 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 .calday.done{background:#dcebd9;color:#285437;font-weight:800}.calday.today{outline:2px solid var(--accent)}
 .small{font-size:12px;color:var(--muted);line-height:1.55}.foot{margin-top:20px}
 .item-main{min-width:0}.item-text{display:block} .item-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px;font-size:13px}.item-tools button,.item-tools label{width:100%;min-width:0;min-height:38px;display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 8px;font-size:12px;line-height:1.25;border-radius:9px;white-space:normal;text-align:center}.item-tools label{border:1px solid var(--line);background:#faf9f6;color:var(--muted)}.item-tools input{width:17px;height:17px;flex:0 0 auto;accent-color:var(--accent);padding:0;margin:0}.review-btn{font-size:12px}.speak-btn{background:#edf3eb;border-color:#cbd9c8;color:#31543a}.review-btn.saved{background:#fff1df;border-color:#e6b76c;color:#80500b}.filterbar{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 10px}.filterbar button.active{background:var(--accent);color:#fff;border-color:var(--accent)}.item-count{font-size:12px;color:var(--muted);margin-left:auto}.record-btn{padding:6px 10px;font-size:12px;border-radius:9px;background:#fff1f0;border-color:#e5b8b3;color:#8b332b}.record-result{display:none;margin-top:9px;padding:10px;border-radius:10px;background:#f5f3ed;font-size:12px;line-height:1.55}.record-result.show{display:block}.record-audio{display:block;width:100%;height:38px;margin-top:7px}
+#reviewGatePanel{border:2px solid #b8cba8;background:linear-gradient(160deg,#fbfff8,#eef5e9)}#reviewGatePanel .review-question{font-size:clamp(25px,6vw,34px);font-weight:850;line-height:1.45;text-align:center;padding:24px 10px}#reviewMicBtn{width:100%;min-height:58px;font-size:18px;font-weight:850;background:#486b55;color:#fff;border-color:#486b55}#reviewMicBtn.listening{background:#b84b45;border-color:#b84b45}#reviewFeedback{min-height:42px;text-align:center;padding:10px;border-radius:11px;background:#f5f3ed;font-size:14px;line-height:1.5}#reviewGateProgress{height:8px;background:#e4e8df;border-radius:99px;overflow:hidden}#reviewGateProgress span{display:block;height:100%;width:0;background:#6b9864;transition:width .2s}
 
 .reward-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.reward-main,.reward-streak{padding:13px;border-radius:13px;background:#f7f5ef}.reward-number{font-size:30px;font-weight:850;color:#a66a12;line-height:1.25;margin:4px 0}.streak-number{font-size:25px;font-weight:850;color:#c05b27;line-height:1.4;margin:4px 0}.badge-title{font-size:13px;font-weight:800;margin:16px 0 8px}.badge-list{display:flex;flex-wrap:wrap;gap:7px}.earned-badge,.locked-badge{padding:7px 10px;border-radius:999px;font-size:12px;border:1px solid #ead9ad;background:#fff8e6;color:#775318}.locked-badge{border-color:var(--line);background:#f7f6f2;color:#9a948a}.reward-options{display:grid;grid-template-columns:1fr;gap:8px}.reward-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff}.reward-option .reward-desc{min-width:0;font-size:13px;line-height:1.4}.reward-option button{flex:0 0 auto;padding:7px 10px;font-size:12px}.reward-option button:disabled{opacity:.45}.approve-reward{margin-top:7px;padding:7px 10px;font-size:12px;background:#edf3eb;border-color:#cbd9c8;color:#31543a}
 @media(min-width:560px){.item-tools{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -60,23 +61,42 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 </style></head>
  <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js');
+  let appRefreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (appRefreshing) return;
+    appRefreshing = true;
+    window.location.reload();
+  });
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+      registration.update().catch(() => {});
+    } catch (error) { console.warn('Service worker update check failed', error); }
   });
 }
  </script>
 <body><main>
 <header><div><div class="kicker">ILPPANGPPANG · BASIC ENGLISH</div><strong>매일 20문장, 30일 완성</strong></div><div class="day" id="dayBadge">DAY 1 / 30</div></header>
 <h1>1권 순차 학습</h1><p class="sub" id="dateLabel"></p>
-<section class="panel">
+<section class="panel" id="dayControlsPanel">
 <div class="controls"><label for="startDate">학습 시작일</label><input type="date" id="startDate"><button id="apply">적용</button><button id="today">오늘의 DAY</button></div>
 <div class="controls" style="margin-top:10px"><button id="prevDay">← 이전 DAY</button><select id="daySelect" aria-label="DAY 선택"></select><button id="nextDay">다음 DAY →</button></div>
 <div class="progress"><span id="progressBar"></span></div><div class="small" id="progressLabel"></div>
 </section>
-<div class="toggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
-<section class="panel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.85배</span></label><input id="voiceRate" type="range" min="0.75" max="1.05" step="0.05" value="0.85" style="width:100%"></div></section>
-<section class="panel"><div class="small" style="margin-bottom:10px">🎙 녹음: 버튼을 눌러 녹음하고, 녹음을 마치면 내 목소리를 다시 들을 수 있어요.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
-<section class="panel">
+<section class="panel" id="reviewGatePanel" style="display:none">
+ <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><strong>🗣️ 오늘의 말하기 복습</strong><span class="small" id="reviewGateCount"></span></div>
+ <div class="small" id="reviewGateHint" style="margin-top:7px">한글을 보고 영어 문장을 말해 보세요.</div>
+ <div id="reviewGateProgress" style="margin-top:10px"><span id="reviewGateProgressBar"></span></div>
+ <div class="review-question" id="reviewGateKorean"></div>
+ <div class="small" id="reviewGateNumber" style="text-align:center"></div>
+ <button id="reviewMicBtn" type="button">🎙️ 영어로 말하기</button>
+ <div id="reviewFeedback" style="margin-top:10px" aria-live="polite">마이크 버튼을 누르고 영어 문장을 말해 주세요.</div>
+ <div class="small" style="margin-top:8px;text-align:center">정답 문장과 일치하면 자동으로 통과해요. 음성은 저장하지 않고 인식 결과만 비교합니다.</div>
+</section>
+<div class="toggle" id="studyViewToggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
+<section class="panel" id="voiceSettingsPanel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.85배</span></label><input id="voiceRate" type="range" min="0.75" max="1.05" step="0.05" value="0.85" style="width:100%"></div></section>
+<section class="panel" id="sentenceStudyPanel"><div class="small" style="margin-bottom:10px">🎙 기존 녹음은 내 목소리 확인용이에요. 복습 통과는 별도의 영어 음성 인식으로 확인합니다.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
+<section class="panel" id="studyActionsPanel">
 <div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
 <div class="status" id="studyStatus">학습을 마친 뒤 완료 버튼을 눌러 기록하세요.</div><div id="bonusGameWrap" style="display:none;margin-top:10px"><button class="primary" id="bonusGameBtn" style="width:100%">🎁 보너스 미니게임 1분 도전하기</button><div class="small" style="text-align:center;margin-top:5px">오늘 학습을 완료한 보너스 게임이에요!</div></div>
 </section>
@@ -107,7 +127,7 @@ if ('serviceWorker' in navigator) {
 <div class="calendar-head"><button id="prevMonth">‹</button><strong id="monthTitle">학습 기록</strong><button id="nextMonth">›</button></div>
 <div class="calendar-grid" id="calendar"></div>
 </section>
-<p class="small foot">학습 기록은 이 기기의 브라우저에 저장됩니다. 백업 파일로 다른 기기에 옮길 수 있습니다. 녹음은 HTTPS 크롬과 마이크 권한이 필요합니다. 녹음 파일은 현재 화면에서 재생할 수 있고 새로고침하면 사라집니다.</p>
+<p class="small foot">학습 기록은 이 기기의 브라우저에 저장됩니다. 백업 파일로 다른 기기에 옮길 수 있습니다. 말하기 복습은 안드로이드 크롬의 마이크와 영어 음성 인식이 필요합니다. 녹음 파일은 현재 화면에서 재생할 수 있고 새로고침하면 사라집니다.</p>
 </main>
 
 <div id="miniGameLayer" role="dialog" aria-modal="true" aria-label="오늘의 미니게임">
@@ -137,6 +157,29 @@ function selectedDate(){return previewDay===null?iso(today):null}
 let listMode='all';
 function readMap(name){try{return JSON.parse(localStorage.getItem(name)||'{}')}catch(e){return {}}}
 function writeMap(name,obj){localStorage.setItem(name,JSON.stringify(obj))}
+const REVIEW_SCHEDULE_KEY='ilbbangSeq600ReviewSchedule';
+const DAILY_REVIEW_KEY='ilbbangSeq600DailyReview';
+const REVIEW_INTERVALS=[1,3,7,14,30];
+function addDaysISO(dateString,days){const d=new Date((dateString||iso(today))+'T12:00:00');d.setDate(d.getDate()+days);return iso(d);}
+function reviewSchedule(){return readMap(REVIEW_SCHEDULE_KEY)}
+function dailyReviewData(){return readMap(DAILY_REVIEW_KEY)}
+function todayDailyReview(){const all=dailyReviewData();return all[iso(today)]||{added:[],passed:[]};}
+function todayDailyReviewItems(){const state=todayDailyReview(),all=DATA.flatMap(d=>d.items),marked=readMap('ilbbangSeq600Review');return (state.added||[]).filter(no=>marked[no]&&!(state.passed||[]).includes(no)).map(no=>all.find(x=>x.no===Number(no))).filter(Boolean);}
+function saveTodayDailyReview(state){const all=dailyReviewData();all[iso(today)]={added:[...new Set((state.added||[]).map(Number))],passed:[...new Set((state.passed||[]).map(Number))]};writeMap(DAILY_REVIEW_KEY,all);}
+function dueReviewItems(){
+ const marked=readMap('ilbbangSeq600Review'),schedule=reviewSchedule(),todayKey=iso(today);
+ return DATA.flatMap(d=>d.items).filter(item=>marked[item.no]).filter(item=>{
+  if(!schedule[item.no])return true;
+  return (schedule[item.no].dueDate||todayKey)<=todayKey;
+ }).sort((a,b)=>((schedule[a.no]?.dueDate||todayKey).localeCompare(schedule[b.no]?.dueDate||todayKey))||a.no-b.no);
+}
+function ensureReviewSchedules(){
+ const marked=readMap('ilbbangSeq600Review'),schedule=reviewSchedule();let changed=false;
+ Object.keys(marked).forEach(no=>{if(marked[no]&&!schedule[no]){schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),attempts:0};changed=true;}});
+ Object.keys(schedule).forEach(no=>{if(!marked[no]){delete schedule[no];changed=true;}});
+ if(changed)writeMap(REVIEW_SCHEDULE_KEY,schedule);
+}
+let reviewCurrentNo=null,reviewPassedInSession=0,reviewSessionTotal=0,reviewRecognition=null,reviewListening=false,reviewMode='scheduled';
 const REWARD_KEY='ilbbangSeq600StarAwards',REDEEM_KEY='ilbbangSeq600RewardRequests';
 const REWARDS=[{id:'snack',cost:5,title:'작은 간식 고르기',desc:'좋아하는 간식 하나를 부모님과 골라요.'},{id:'play',cost:10,title:'가족 놀이 선택권',desc:'주말에 함께 할 놀이를 직접 골라요.'},{id:'outing',cost:20,title:'특별한 가족 활동',desc:'가고 싶은 곳이나 함께 할 활동을 정해요.'}];
 function studyDates(){return [...new Set(Object.keys(readRecords()).filter(k=>readRecords()[k]===true).map(k=>k.split('|')[0]))].sort();}
@@ -216,18 +259,27 @@ async function startRecording(no){
 function finishRecording(){if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();}
 
 function render(){
+ ensureReviewSchedules();
+ const due=dueReviewItems();
  const day=currentDay(),data=DATA[day-1],records=readRecords(),done=!!records[key(iso(today),day)];
  const checked=readMap('ilbbangSeq600Checked'),review=readMap('ilbbangSeq600Review');
+ const allSentencesDone=data.items.every(x=>!!checked[x.no]);
+ const dailyPending=previewDay===null&&allSentencesDone?todayDailyReviewItems():[];
+ const reviewModeNow=due.length?'scheduled':dailyPending.length?'daily':null;
+ const reviewItems=due.length?due:dailyPending;
+ const reviewLocked=!!reviewModeNow;
  $('dayBadge').textContent=`DAY ${day} / 30`;
  $('dateLabel').textContent=previewDay===null?today.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'}):`DAY ${day} 미리보기`;
  $('daySelect').value=String(day);
- $('prevDay').disabled=day===1;$('nextDay').disabled=day===30;
+ $('prevDay').disabled=day===1||reviewLocked;$('nextDay').disabled=day===30||reviewLocked;
+ $('startDate').disabled=reviewLocked;$('apply').disabled=reviewLocked;$('today').disabled=reviewLocked;$('daySelect').disabled=reviewLocked;
  const todayChecked=data.items.filter(x=>checked[x.no]).length;
  $('progressBar').style.width=(todayChecked/data.items.length*100)+'%';
  $('progressLabel').textContent=`오늘 문장 학습 ${todayChecked}/${data.items.length}개 완료 · DAY ${day}/30`;
  $('showAll').classList.toggle('active',listMode==='all');
  $('showReview').classList.toggle('active',listMode==='review');
- const visible=data.items.filter(x=>listMode==='all'||review[x.no]);
+ const allItems=DATA.flatMap(d=>d.items);
+ const visible=listMode==='all'?data.items:allItems.filter(x=>review[x.no]);
  $('itemCount').textContent=listMode==='all'?`${data.items.length}문장`:`복습 ${visible.length}문장`;
  $('emptyReview').style.display=visible.length?'none':'block';
  $('sentenceList').innerHTML=visible.map(x=>{
@@ -235,16 +287,77 @@ function render(){
   return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">🎙 녹음</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result" id="record-${x.no}"></div></span></li>`;
  }).join('');
  $('koreanBtn').classList.toggle('active',viewMode==='ko');$('englishBtn').classList.toggle('active',viewMode==='en');$('bothBtn').classList.toggle('active',viewMode==='both');
- const allSentencesDone=todayChecked===data.items.length;
- $('markDone').disabled=previewDay!==null||done||!allSentencesDone;
+ $('reviewGatePanel').style.display=reviewLocked?'block':'none';
+ $('dayControlsPanel').style.display=reviewLocked?'none':'block';
+ $('studyViewToggle').style.display=reviewLocked?'none':'flex';
+ $('voiceSettingsPanel').style.display=reviewLocked?'none':'block';
+ $('sentenceStudyPanel').style.display=reviewLocked?'none':'block';
+ $('studyActionsPanel').style.display=reviewLocked?'none':'block';
+ if(reviewLocked){reviewMode=reviewModeNow;renderReviewGate(reviewItems,reviewModeNow);}
+ $('markDone').disabled=previewDay!==null||done||!allSentencesDone||reviewLocked;
  $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':allSentencesDone?'✓ 오늘 학습 완료':'문장 학습을 모두 완료해 주세요';
  $('undoDone').disabled=previewDay!==null||!done;
  $('bonusGameWrap').style.display=(previewDay===null&&done)?'block':'none';
- $('studyStatus').textContent=previewDay!==null?'미리보기 중입니다. 오늘의 DAY 화면에서 학습 기록을 저장할 수 있어요.':done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone?'모든 문장을 학습했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
+ $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개를 먼저 통과해야 새 학습을 시작할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone?'모든 문장을 학습했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
  renderCalendar();
  if(previewDay===null&&readRecords()[key(iso(today),currentDay())])awardToday();
  renderRewards();
 }
+function renderReviewGate(items,mode='scheduled'){
+ if(!items.length)return;
+ if(!reviewCurrentNo||!items.some(x=>x.no===reviewCurrentNo))reviewCurrentNo=items[0].no;
+ const index=items.findIndex(x=>x.no===reviewCurrentNo),item=items[index]||items[0];
+ reviewCurrentNo=item.no;
+ $('reviewGateCount').textContent=`남은 복습 ${items.length}개`;
+ $('reviewGateHint').textContent=mode==='daily'?'오늘 복습 추가한 순서대로 한글을 보고 영어로 말해 보세요. 모두 통과해야 오늘 학습이 완료돼요.':'한글을 보고 영어로 말해 보세요. 문장이 일치하면 자동으로 통과합니다.';
+ $('reviewGateProgressBar').style.width=(reviewPassedInSession/Math.max(reviewSessionTotal,reviewPassedInSession+items.length)*100)+'%';
+ $('reviewGateKorean').textContent=item.ko;
+ $('reviewGateNumber').textContent=`문장 ${item.no}번 · ${index+1} / ${items.length}`;
+ $('reviewMicBtn').disabled=reviewListening;
+ $('reviewMicBtn').classList.toggle('listening',reviewListening);
+ $('reviewMicBtn').textContent=reviewListening?'🔴 듣고 있어요…':'🎙️ 영어로 말하기';
+}
+
+function normalizeSpokenSentence(value){return String(value||'').toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim();}
+function startReviewSpeaking(){
+ const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!Recognition){$('reviewFeedback').textContent='이 브라우저는 음성 인식을 지원하지 않아요. 안드로이드 크롬에서 앱을 열어 주세요.';return;}
+ if(reviewListening)return;
+ const due=reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();if(!due.length){render();return;}
+ const item=due.find(x=>x.no===reviewCurrentNo)||due[0],mode=reviewMode;
+ const recognition=new Recognition();reviewRecognition=recognition;reviewListening=true;renderReviewGate(due,mode);
+ $('reviewFeedback').textContent='영어 문장을 말해 주세요…';
+ recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=false;recognition.maxAlternatives=1;
+ recognition.onresult=event=>{
+  const spoken=event.results?.[0]?.[0]?.transcript||'';
+  const expected=normalizeSpokenSentence(item.en),actual=normalizeSpokenSentence(spoken);
+  reviewListening=false;reviewRecognition=null;
+  if(actual&&actual===expected){
+   if(mode==='daily'){
+    const state=todayDailyReview();state.passed=state.passed||[];if(!state.passed.includes(item.no))state.passed.push(item.no);saveTodayDailyReview(state);
+    reviewPassedInSession++;reviewCurrentNo=null;$('reviewFeedback').textContent='✨ 정답이에요! 오늘 추가한 복습을 통과했어요.';
+   }else{
+    const marked=readMap('ilbbangSeq600Review'),schedule=reviewSchedule(),entry=schedule[item.no]||{stage:0,dueDate:iso(today),addedAt:iso(today),attempts:0};
+    entry.attempts=(entry.attempts||0)+1;
+    const nextStage=Number(entry.stage||0)+1;
+    if(nextStage>=REVIEW_INTERVALS.length){delete marked[item.no];delete schedule[item.no];writeMap('ilbbangSeq600Review',marked);writeMap(REVIEW_SCHEDULE_KEY,schedule);reviewPassedInSession++;reviewCurrentNo=null;$('reviewFeedback').textContent='🎉 완벽해요! 30일 복습까지 통과했어요. 이 문장은 복습을 졸업했어요.';}
+    else{entry.stage=nextStage;entry.dueDate=addDaysISO(iso(today),REVIEW_INTERVALS[nextStage]);schedule[item.no]=entry;writeMap(REVIEW_SCHEDULE_KEY,schedule);reviewPassedInSession++;reviewCurrentNo=null;$('reviewFeedback').textContent='✨ 정답이에요! 다음 복습 일정이 저장됐어요.';}
+   }
+   const remaining=mode==='daily'?todayDailyReviewItems():dueReviewItems();reviewSessionTotal=Math.max(reviewSessionTotal,reviewPassedInSession+remaining.length);
+   setTimeout(()=>{if(remaining.length){reviewCurrentNo=remaining[0].no;render();}else{reviewCurrentNo=null;render();}},900);
+  }else{
+   if(mode==='scheduled'){
+    const schedule=reviewSchedule(),entry=schedule[item.no]||{stage:0,addedAt:iso(today),attempts:0};entry.attempts=(entry.attempts||0)+1;entry.dueDate=addDaysISO(iso(today),1);schedule[item.no]=entry;writeMap(REVIEW_SCHEDULE_KEY,schedule);
+   }
+   $('reviewFeedback').textContent=spoken?`아직 문장이 달라요. 인식된 문장: “${spoken}” · 다시 말해 보세요.`:'잘 들리지 않았어요. 마이크 가까이에서 다시 말해 주세요.';
+   if(mode==='daily'){renderReviewGate(todayDailyReviewItems(),mode);}else{setTimeout(()=>render(),850);}
+  }
+ };
+ recognition.onerror=event=>{reviewListening=false;reviewRecognition=null;const remaining=mode==='daily'?todayDailyReviewItems():dueReviewItems();renderReviewGate(remaining,mode);$('reviewFeedback').textContent=event.error==='not-allowed'?'마이크 권한을 허용해 주세요. 크롬 사이트 설정에서 마이크를 허용할 수 있어요.':`음성을 인식하지 못했어요 (${event.error}). 다시 말해 주세요.`;};
+ recognition.onend=()=>{if(reviewRecognition===recognition){reviewListening=false;reviewRecognition=null;const remaining=mode==='daily'?todayDailyReviewItems():dueReviewItems();renderReviewGate(remaining,mode);if(!$('reviewFeedback').textContent.includes('정답')&&!$('reviewFeedback').textContent.includes('달라요')&&!$('reviewFeedback').textContent.includes('권한'))$('reviewFeedback').textContent='음성이 끝났어요. 다시 말하려면 버튼을 눌러 주세요.';}};
+ try{recognition.start();}catch(err){reviewListening=false;reviewRecognition=null;const remaining=mode==='daily'?todayDailyReviewItems():dueReviewItems();renderReviewGate(remaining,mode);$('reviewFeedback').textContent='마이크를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.';}
+}
+
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function renderCalendar(){
  const y=calendarDate.getFullYear(),m=calendarDate.getMonth(),first=new Date(y,m,1).getDay(),last=new Date(y,m+1,0).getDate(),r=readRecords();
@@ -264,19 +377,20 @@ $('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
 $('koreanBtn').onclick=()=>{viewMode='ko';render()};
 $('englishBtn').onclick=()=>{viewMode='en';render()};
 $('bothBtn').onclick=()=>{viewMode='both';render()};
-$('markDone').onclick=()=>{if(previewDay!==null)return;const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked');if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday();render()};
+$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked');if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday();render()};
 $('undoDone').onclick=()=>{if(previewDay!==null)return;let r=readRecords();delete r[key(iso(today),currentDay())];localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));render()};
 $('prevMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()-1,1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+1,1);renderCalendar()};
 $('showAll').onclick=()=>{listMode='all';render()};
 $('showReview').onclick=()=>{listMode='review';render()};
+$('reviewMicBtn').onclick=startReviewSpeaking;
 $('sentenceList').addEventListener('change',e=>{
  const no=e.target.getAttribute('data-check');if(!no)return;
  let m=readMap('ilbbangSeq600Checked');if(e.target.checked)m[no]=true;else delete m[no];writeMap('ilbbangSeq600Checked',m);render();
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review','ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -286,7 +400,7 @@ $('importBackup').onclick=()=>$('backupFile').click();
 $('backupFile').onchange=async e=>{
  const file=e.target.files&&e.target.files[0];if(!file)return;
  try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
-  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REWARD_KEY,REDEEM_KEY];
+  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY];
   for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
@@ -312,9 +426,11 @@ $('sentenceList').addEventListener('click',e=>{
  const speakBtn=e.target.closest('[data-speak]');
  if(speakBtn){const no=Number(speakBtn.getAttribute('data-speak'));const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(item)speakEnglish(item.en);return;}
  const btn=e.target.closest('[data-review]');if(!btn)return;
- const no=btn.getAttribute('data-review');let m=readMap('ilbbangSeq600Review');
- if(m[no])delete m[no];else m[no]=true;
- writeMap('ilbbangSeq600Review',m);render();
+ const no=Number(btn.getAttribute('data-review'));let m=readMap('ilbbangSeq600Review'),schedule=reviewSchedule(),daily=dailyReviewData(),todayState=daily[iso(today)]||{added:[],passed:[]};
+ if(m[no]){delete m[no];delete schedule[no];todayState.added=(todayState.added||[]).filter(x=>Number(x)!==no);todayState.passed=(todayState.passed||[]).filter(x=>Number(x)!==no);}
+ else{m[no]=true;if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),attempts:0};todayState.added=todayState.added||[];if(!todayState.added.includes(no))todayState.added.push(no);}
+ daily[iso(today)]={added:[...new Set((todayState.added||[]).map(Number))],passed:[...new Set((todayState.passed||[]).map(Number))]};writeMap(DAILY_REVIEW_KEY,daily);
+ writeMap('ilbbangSeq600Review',m);writeMap(REVIEW_SCHEDULE_KEY,schedule);render();
 });
 window.ilbbangRenderAfterCloudSync = render;
 render();
@@ -398,7 +514,7 @@ async function registerPushDevice() {
 }
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
-  'ilbbangSeq600Review', 'ilbbangSeqVoiceRate',
+  'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, 'ilbbangSeqVoiceRate',
   'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests'
 ];
 let syncReady = false;
@@ -517,9 +633,17 @@ function mergeMapStrings(cloudValue, localValue) {
 }
 function mergeSnapshots(cloudData, localData) {
   const merged = { ...(cloudData || {}) };
-  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review','ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests'];
+  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,'ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests'];
   for (const key of mapKeys) {
     if (cloudData?.[key] !== undefined || localData?.[key] !== undefined) merged[key] = mergeMapStrings(cloudData?.[key], localData?.[key]);
+  }
+  if (cloudData?.[DAILY_REVIEW_KEY] !== undefined || localData?.[DAILY_REVIEW_KEY] !== undefined) {
+    const cloudDaily=parseObject(cloudData?.[DAILY_REVIEW_KEY]),localDaily=parseObject(localData?.[DAILY_REVIEW_KEY]),combined={...cloudDaily};
+    for (const date of new Set([...Object.keys(cloudDaily),...Object.keys(localDaily)])) {
+      const a=cloudDaily[date]||{},b=localDaily[date]||{};
+      combined[date]={added:[...new Set([...(a.added||[]),...(b.added||[])].map(Number))],passed:[...new Set([...(a.passed||[]),...(b.passed||[])].map(Number))]};
+    }
+    merged[DAILY_REVIEW_KEY]=JSON.stringify(combined);
   }
   for (const key of ['ilbbangSeq600Start','ilbbangSeqVoiceRate']) {
     if (cloudData?.[key] === undefined && localData?.[key] !== undefined) merged[key] = localData[key];
@@ -956,7 +1080,9 @@ onAuthStateChanged(auth, async user => {
  $('mgSound').onclick=()=>{sound=!sound;$('mgSound').textContent=sound?'🔊 소리 켬':'🔇 소리 끔';if(sound)beep(700,.08);};
  const bonusBtn=$('bonusGameBtn');if(bonusBtn)bonusBtn.onclick=()=>open(true);
  const launchKey=`ilbbangMiniLaunchedV2_${profile()}_${today}`;
- if(!localStorage.getItem(launchKey)){localStorage.setItem(launchKey,'1');setTimeout(()=>open(false),650);}
+ function tryAutoLaunch(){if(document.visibilityState==='hidden'||localStorage.getItem(launchKey))return;localStorage.setItem(launchKey,'1');open(false);}
+ setTimeout(tryAutoLaunch,850);
+ document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')tryAutoLaunch();});
 })();
 </script>
 </body></html>

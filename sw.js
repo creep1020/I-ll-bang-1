@@ -25,19 +25,46 @@ messaging.onBackgroundMessage(payload => {
   return self.registration.showNotification(title, options);
 });
 
-const CACHE = 'ilppang-seq-v4-fcm';
+// v6: 앱 화면 업데이트를 더 빠르게 확인하고 최신 배포본을 우선 사용합니다.
+const CACHE = 'ilppang-seq-v6-fcm';
 const FILES = ['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)));
   self.skipWaiting();
 });
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('ilppang-seq-') && key !== CACHE).map(key => caches.delete(key)))));
+  event.waitUntil(caches.keys().then(keys => Promise.all(
+    keys.filter(key => key.startsWith('ilppang-seq-') && key !== CACHE).map(key => caches.delete(key))
+  )));
   self.clients.claim();
 });
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
-  event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  // 앱 첫 화면과 HTML은 항상 최신 배포본을 우선 사용합니다.
+  if (request.mode === 'navigate' || (new URL(request.url).origin === self.location.origin && request.destination === 'document')) {
+    event.respondWith(fetch(request, { cache: 'no-store' }).then(response => {
+      if (response && response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE).then(cache => cache.put(request, copy));
+      }
+      return response;
+    }).catch(async () => {
+      const cached = await caches.match(request);
+      return cached || caches.match('./index.html');
+    }));
+    return;
+  }
+
+  // 이미지·아이콘などはキャッシュを優先し、なければネットワークから取得します。
+  event.respondWith(caches.match(request).then(cached => cached || fetch(request).then(response => {
+    if (response && response.ok && new URL(request.url).origin === self.location.origin) {
+      const copy = response.clone();
+      caches.open(CACHE).then(cache => cache.put(request, copy));
+    }
+    return response;
+  })));
 });
 self.addEventListener('notificationclick', event => {
   event.notification.close();

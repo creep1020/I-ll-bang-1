@@ -33,9 +33,30 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 @media(min-width:560px){.item-tools{grid-template-columns:repeat(4,minmax(0,1fr))}}
 
 /* Daily mini game */
-#miniGameLayer{position:fixed;inset:0;z-index:99999;background:rgba(25,30,25,.72);display:none;align-items:center;justify-content:center;padding:14px}
-#miniGameLayer.show{display:flex}#miniGameCard{width:min(100%,520px);max-height:92dvh;overflow:auto;background:#fffdf8;border-radius:24px;padding:20px;box-shadow:0 20px 70px #0005;text-align:center;color:#28251f}
-#miniGameCard h2{font-size:24px;margin:5px 0 3px}#miniGameCard .mg-sub{font-size:13px;color:#827b70;margin:0 0 14px}#mgTimer{font-size:28px;font-weight:900;color:#486b55;font-variant-numeric:tabular-nums}#mgScore{font-weight:800;color:#a66a12}#mgBoard{min-height:240px;margin:14px 0;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px;padding:12px;background:#f5f2e9;border-radius:18px}#mgBoard button{min-width:58px;min-height:58px;font-size:25px;border:1px solid #e7dfd2;border-radius:14px;background:white}#mgBoard button.mg-hit{background:#dcebd9;border-color:#9cbd9b}#mgBoard button.mg-wrong{background:#ffe3df}#mgControls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#mgControls button{min-width:110px}#mgSkip{background:#f5f2e9}#mgProgress{height:7px;background:#e9e4da;border-radius:20px;overflow:hidden;margin-top:12px}#mgProgress span{display:block;height:100%;width:100%;background:#486b55;transition:width .3s linear}.mg-card{width:64px;height:70px!important;font-size:28px!important}.mg-target{width:72px;height:72px!important;border-radius:50%!important;background:#fff1d9!important}.mg-big{font-size:58px;font-weight:900}.mg-result{font-size:19px;font-weight:800;line-height:1.6}
+#miniGameLayer{position:fixed;inset:0;z-index:99999;background:radial-gradient(circle at 50% 15%,#596f8c 0,#202c3b 68%);display:none;align-items:center;justify-content:center;padding:12px}
+#miniGameLayer.show{display:flex}
+#miniGameCard{width:min(100%,540px);max-height:95dvh;overflow:auto;background:linear-gradient(160deg,#fffdf8,#f4f0e5);border:2px solid #fff9;border-radius:26px;padding:17px;box-shadow:0 24px 80px #0008;text-align:center;color:#28251f;position:relative}
+#miniGameCard h2{font-size:23px;margin:5px 0 3px}#miniGameCard .mg-sub{font-size:13px;color:#827b70;margin:0 0 12px}
+#mgTimer{font-size:27px;font-weight:1000;color:#486b55;font-variant-numeric:tabular-nums;background:#e6efdf;border-radius:14px;padding:5px 11px}
+#mgScore{font-weight:1000;color:#a66a12;font-size:19px}#mgBest{font-weight:900}
+#mgStats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}
+.mg-stat{background:#f0ebdf;border-radius:12px;padding:7px 3px;font-size:11px;color:#766e60}.mg-stat b{display:block;font-size:17px;color:#332f28;margin-top:2px}
+#mgBoard{min-height:250px;margin:12px 0;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px;padding:12px;background:linear-gradient(145deg,#e9edf1,#f4f2e9);border:1px solid #e4dfd4;border-radius:20px;position:relative;overflow:hidden}
+#mgBoard button{min-width:58px;min-height:58px;font-size:25px;border:1px solid #e7dfd2;border-radius:15px;background:white;box-shadow:0 3px 0 #d7d0c3;transition:transform .08s,filter .08s}
+#mgBoard button:active{transform:translateY(3px);box-shadow:0 0 0 #d7d0c3}
+#mgBoard button:disabled{opacity:.55;box-shadow:none}
+#mgBoard button.mg-hit{background:#dcebd9;border-color:#9cbd9b}#mgBoard button.mg-wrong{background:#ffe3df}
+#mgControls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}#mgControls button{min-width:110px}
+#mgSkip{background:#f5f2e9}#mgProgress{height:8px;background:#e9e4da;border-radius:20px;overflow:hidden;margin-top:12px}#mgProgress span{display:block;height:100%;width:100%;background:linear-gradient(90deg,#7fa66e,#e5b34f);transition:width .3s linear}
+.mg-card{width:calc(25% - 9px);max-width:88px;height:70px!important;font-size:30px!important;background:linear-gradient(145deg,#fff,#e9e4d9)!important}
+.mg-target{width:calc(30% - 8px);height:70px!important;border-radius:18px!important;background:#fff1d9!important}
+.mg-big{font-size:clamp(38px,11vw,62px);font-weight:1000;line-height:1.2}
+.mg-result{font-size:18px;font-weight:800;line-height:1.7}.mg-stars{font-size:39px;letter-spacing:4px;margin:8px 0;filter:drop-shadow(0 3px 2px #d5a43c)}
+.mg-toast{font-weight:900;color:#4d7652;min-height:22px}.mg-frenzy{animation:mgPulse .45s infinite alternate;color:#d34c39!important}
+@keyframes mgPulse{to{transform:scale(1.08);filter:drop-shadow(0 0 8px #ff9b52)}}
+.mg-lane{width:30%!important;height:112px!important;font-size:30px!important;background:linear-gradient(#fff,#e7e4dc)!important}
+.mg-action{background:#e8efdf!important;border-color:#b8cba8!important;font-weight:900}
+@media(max-height:720px){#miniGameCard{padding:12px}#mgBoard{min-height:205px;margin:8px 0}.mg-card{height:58px!important}}
 </style></head>
  <script>
 if ('serviceWorker' in navigator) {
@@ -90,7 +111,16 @@ if ('serviceWorker' in navigator) {
 </main>
 
 <div id="miniGameLayer" role="dialog" aria-modal="true" aria-label="오늘의 미니게임">
- <div id="miniGameCard"><div class="kicker">ILPPANGPPANG · DAILY PLAY</div><div style="display:flex;justify-content:space-between;align-items:center"><span id="mgMode" class="small">오늘의 미니게임</span><span id="mgTimer">02:00</span></div><h2 id="mgTitle">오늘의 게임</h2><p id="mgDesc" class="mg-sub">2분 동안 즐겨봐요!</p><div style="display:flex;justify-content:center;gap:22px;font-size:14px"><span>점수 <b id="mgScore">0</b></span><span>최고 <b id="mgBest">0</b></span></div><div id="mgBoard"></div><div id="mgControls"><button id="mgStart" class="primary">게임 시작</button><button id="mgSkip">건너뛰기</button></div><div id="mgProgress"><span id="mgProgressBar"></span></div><p id="mgFeedback" class="small" aria-live="polite" style="min-height:20px;margin:10px 0 0"></p></div>
+ <div id="miniGameCard">
+  <div class="kicker">ILPPANGPPANG · DAILY ARCADE</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span id="mgMode" class="small">오늘의 미니게임</span><span id="mgTimer">02:00</span></div>
+  <h2 id="mgTitle">오늘의 게임</h2><p id="mgDesc" class="mg-sub">2분 동안 최고 기록에 도전!</p>
+  <div id="mgStats"><div class="mg-stat">점수<b id="mgScore">0</b></div><div class="mg-stat">콤보<b id="mgCombo">0</b></div><div class="mg-stat">레벨<b id="mgLevel">1</b></div><div class="mg-stat">최고 기록<b id="mgBest">0</b></div></div>
+  <div id="mgBoard"></div>
+  <div id="mgControls"><button id="mgStart" class="primary">게임 시작</button><button id="mgSound" type="button">🔊 소리 켬</button><button id="mgSkip" type="button">건너뛰기</button></div>
+  <div id="mgProgress"><span id="mgProgressBar"></span></div>
+  <p id="mgFeedback" class="small mg-toast" aria-live="polite" style="margin:9px 0 0">준비!</p>
+ </div>
 </div>
 
 <script>
@@ -849,33 +879,43 @@ onAuthStateChanged(auth, async user => {
 
 <script>
 (()=>{
- const $g=id=>document.getElementById(id), layer=$g('miniGameLayer'), board=$g('mgBoard');
- if(!layer||!board)return;
- const dayKey=new Date().toLocaleDateString('sv-SE');
+ const $=id=>document.getElementById(id),layer=$('miniGameLayer'),board=$('mgBoard');if(!layer||!board)return;
+ const today=new Date().toLocaleDateString('sv-SE');
  const games=[
-  {id:'memory',name:'기억력 카드 짝 맞추기',desc:'같은 그림 두 장을 찾아보세요!',init:initMemory},
-  {id:'mole',name:'두더지 잡기',desc:'나타나는 두더지를 빠르게 눌러요!',init:initMole},
-  {id:'color',name:'색깔 반응 챌린지',desc:'화면에 나온 색깔과 같은 버튼을 눌러요!',init:initColor},
-  {id:'number',name:'숫자 순서 찾기',desc:'작은 숫자부터 빠르게 눌러요!',init:initNumber}
+  {id:'memory',name:'기억력 카드 챌린지',desc:'같은 그림을 찾아 콤보를 이어가세요!',init:memory},
+  {id:'mole',name:'두더지 골드 헌터',desc:'두더지는 잡고 폭탄은 피하세요!',init:mole},
+  {id:'color',name:'컬러 스위치',desc:'글자 뜻과 글자색이 뒤바뀝니다. 지시를 잘 읽으세요!',init:color},
+  {id:'number',name:'숫자 스피드런',desc:'숫자 1부터 순서대로! 세트가 끝날수록 빨라져요.',init:number},
+  {id:'dodge',name:'별 수집 대작전',desc:'별이 있는 길을 고르고 폭탄이 있는 길은 피하세요!',init:dodge}
  ];
- let game,score=0,seconds=120,tick=null,active=false,bonus=false,roundState={},best=0;
+ let game,score=0,seconds=120,tick=null,active=false,bonus=false,combo=0,level=1,startedAt=0,sound=true,boostUntil=0,round=0,gameTimers=[];
  const profile=()=>localStorage.getItem('ilbbangActiveProfileId')||'device';
  const bestKey=()=>`ilbbangMiniBest_${profile()}_${game?.id||'all'}`;
- function setScore(n){score=n;$g('mgScore').textContent=score;if(game){best=Number(localStorage.getItem(bestKey())||0);$g('mgBest').textContent=Math.max(best,score)}}
- function chooseGame(){let n=0;for(const c of dayKey)n=(n*31+c.charCodeAt(0))>>>0;return games[n%games.length]}
- function open(isBonus=false){bonus=isBonus;game=isBonus?games[Math.floor(Math.random()*games.length)]:chooseGame();seconds=isBonus?60:120;score=0;active=false;clearInterval(tick);$g('mgMode').textContent=isBonus?'학습 완료 보너스':'오늘의 랜덤 게임';$g('mgTimer').textContent=fmt(seconds);$g('mgTitle').textContent=game.name;$g('mgDesc').textContent=game.desc;$g('mgBest').textContent=localStorage.getItem(bestKey())||0;$g('mgFeedback').textContent='시작 버튼을 눌러 도전하세요!';$g('mgStart').style.display='inline-block';$g('mgStart').textContent='게임 시작';$g('mgSkip').textContent='건너뛰기';$g('mgProgressBar').style.width='100%';board.innerHTML='<div class="small">게임을 준비하고 있어요!</div>';layer.classList.add('show');setTimeout(start,250)}
- function fmt(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
- function start(){if(active)return;active=true;$g('mgStart').style.display='none';$g('mgFeedback').textContent='화이팅!';game.init();tick=setInterval(()=>{seconds--; $g('mgTimer').textContent=fmt(seconds);$g('mgProgressBar').style.width=(seconds/(bonus?60:120)*100)+'%';if(seconds<=0)finish();},1000)}
- function finish(){clearInterval(tick);active=false;let old=Number(localStorage.getItem(bestKey())||0);if(score>old)localStorage.setItem(bestKey(),String(score));$g('mgTitle').textContent='🎉 도전 완료!';$g('mgDesc').textContent='오늘도 즐겁게 한 판 했어요.';board.innerHTML=`<div class="mg-result">획득 점수<br><span style="font-size:42px;color:#a66a12">${score}</span><br>최고 기록 ${Math.max(old,score)}점</div>`;$g('mgFeedback').textContent=bonus?'보너스 게임 완료!':'이제 오늘의 영어 문장을 만나볼까요?';$g('mgStart').style.display='inline-block';$g('mgStart').textContent='학습 화면으로 이동';$g('mgSkip').style.display='none';$g('mgStart').onclick=closeToStudy}
- function closeToStudy(){clearInterval(tick);layer.classList.remove('show');$g('mgSkip').style.display='inline-block';$g('mgStart').onclick=start;window.scrollTo({top:0,behavior:'smooth'})}
- function initMemory(){let vals=['🍎','🚗','🐱','⚽','🌈','🍕','🐼','🚀'];let arr=[...vals,...vals].sort(()=>Math.random()-.5),openCards=[],matched=0;board.innerHTML=arr.map((v,i)=>`<button class="mg-card" data-i="${i}" aria-label="카드 ${i+1}">❔</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||b.disabled||openCards.length===2)return;let i=+b.dataset.i;b.textContent=arr[i];openCards.push({b,v:arr[i]});if(openCards.length===2){if(openCards[0].v===openCards[1].v){openCards.forEach(x=>{x.b.disabled=true;x.b.classList.add('mg-hit')});setScore(score+10);matched+=2;openCards=[];if(matched===arr.length){$g('mgFeedback').textContent='완벽해요! 다시 도전해 점수를 더 모아봐요.';initMemory()}}else{let pair=openCards;setTimeout(()=>{pair.forEach(x=>x.b.textContent='❔');openCards=[]},650)}}})}
- function initMole(){let target=-1;const draw=()=>{target=Math.floor(Math.random()*9);board.innerHTML=Array.from({length:9},(_,i)=>`<button class="mg-target" data-i="${i}">${i===target?'🐹':'·'}</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;if(+b.dataset.i===target){setScore(score+1);$g('mgFeedback').textContent='잡았다!';draw()}else{$g('mgFeedback').textContent='앗, 빗나갔어요!'}})};draw()}
- function initColor(){const colors=[['빨강','#e95d54'],['파랑','#4e8ed8'],['노랑','#e7bd42'],['초록','#55a66a']];let answer;const draw=()=>{answer=colors[Math.floor(Math.random()*4)];board.innerHTML=`<div style="width:100%"><div class="mg-big" style="color:${answer[1]}">${answer[0]}</div><div class="small">글자와 같은 색깔 버튼을 누르세요</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">${colors.map(c=>`<button data-c="${c[0]}" style="background:${c[1]};color:white">${c[0]}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;if(b.dataset.c===answer[0]){setScore(score+1);$g('mgFeedback').textContent='정답!';draw()}else{$g('mgFeedback').textContent='다시 생각해봐요!'}})};draw()}
- function initNumber(){let next=1;const draw=()=>{let nums=Array.from({length:12},(_,i)=>i+1).sort(()=>Math.random()-.5);board.innerHTML=nums.map(n=>`<button data-n="${n}">${n}</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||b.disabled)return;if(+b.dataset.n===next){b.disabled=true;b.classList.add('mg-hit');setScore(score+1);next++;if(next>12){$g('mgFeedback').textContent='한 세트 완료!';next=1;draw()}}else{$g('mgFeedback').textContent=`${next}부터 찾아보세요.`}})};draw()}
- $g('mgStart').onclick=start;$g('mgSkip').onclick=()=>{clearInterval(tick);active=false;layer.classList.remove('show');$g('mgSkip').style.display='inline-block';$g('mgStart').onclick=start};
- const bonusBtn=$g('bonusGameBtn');if(bonusBtn)bonusBtn.onclick=()=>open(true);
- // Once per calendar day per local profile, launch a 2-minute game on app entry.
- const launchKey=`ilbbangMiniLaunched_${profile()}_${dayKey}`;
+ const starsKey=()=>`ilbbangMiniStars_${profile()}`;
+ const clearGameTimers=()=>{gameTimers.forEach(clearTimeout);gameTimers=[]};
+ const later=(fn,ms)=>{const t=setTimeout(fn,ms);gameTimers.push(t);return t};
+ const fmt=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+ function beep(freq=600,dur=.07,type='sine'){if(!sound)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=new C(),o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(.055,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);later(()=>c.close(),dur*1000+100)}catch(e){}}
+ function vibrate(ms=18){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
+ function feedback(t,good=true){$('mgFeedback').textContent=t;$('mgFeedback').style.color=good?'#4d7652':'#bd5145';}
+ function updateHUD(){ $('mgScore').textContent=score;$('mgCombo').textContent=combo;$('mgLevel').textContent=level;$('mgBest').textContent=Math.max(score,Number(localStorage.getItem(bestKey())||0)); }
+ function add(points=1){if(!active)return;combo++;const mult=Date.now()<boostUntil?2:1;const bonusPts=combo>0&&combo%5===0?5:0;score+=points*mult+bonusPts;updateHUD();beep(520+Math.min(combo,12)*35,.06);vibrate();if(combo>0&&combo%8===0){boostUntil=Date.now()+8000;feedback('⚡ 8콤보 아이템 획득! 8초간 점수 2배!',true)}else if(combo%5===0)feedback(`🔥 ${combo}콤보! 보너스 +5점`,true);else feedback(mult===2?'⚡ 더블 점수!':`좋아! ${combo}콤보`,true);}
+ function miss(msg='아깝다! 콤보가 끊겼어요.'){if(!active)return;combo=0;updateHUD();feedback(msg,false);beep(180,.12,'triangle');vibrate(45);}
+ function levelNow(){return Math.min(5,1+Math.floor((Date.now()-startedAt)/((bonus?15:30)*1000)));}
+ function open(isBonus=false){bonus=isBonus;game=isBonus?games[Math.floor(Math.random()*games.length)]:choose();seconds=isBonus?60:120;score=0;combo=0;level=1;round=0;active=false;boostUntil=0;clearInterval(tick);clearGameTimers();$('mgMode').textContent=isBonus?'🎁 학습 완료 보너스':'🎮 오늘의 데일리 게임';$('mgTimer').textContent=fmt(seconds);$('mgTitle').textContent=game.name;$('mgDesc').textContent=game.desc;$('mgBest').textContent=localStorage.getItem(bestKey())||0;$('mgStart').style.display='none';$('mgSkip').style.display='inline-block';$('mgProgressBar').style.width='100%';$('mgProgressBar').style.background='linear-gradient(90deg,#7fa66e,#e5b34f)';$('mgFeedback').className='small mg-toast';feedback('게임 준비 중!',true);board.innerHTML='<div class="mg-big">🎮</div>';layer.classList.add('show');setTimeout(start,350);updateHUD();}
+ function choose(){let n=0;for(const c of today)n=(n*31+c.charCodeAt(0))>>>0;return games[n%games.length];}
+ function start(){if(active)return;active=true;startedAt=Date.now();$('mgStart').style.display='none';game.init();tick=setInterval(()=>{if(!active)return;seconds--;level=levelNow();$('mgLevel').textContent=level;$('mgTimer').textContent=fmt(seconds);$('mgProgressBar').style.width=(seconds/(bonus?60:120)*100)+'%';if(seconds<=20){$('mgTimer').classList.add('mg-frenzy');$('mgProgressBar').style.background='linear-gradient(90deg,#e45b4c,#f1b24b)';if(seconds%2===0)beep(260,.04,'square');}if(seconds<=0)finish();},1000);}
+ function finish(){if(!active)return;active=false;clearInterval(tick);clearGameTimers();const old=Number(localStorage.getItem(bestKey())||0);if(score>old)localStorage.setItem(bestKey(),String(score));const earned=score>=100?3:score>=45?2:score>=15?1:0;const total=Number(localStorage.getItem(starsKey())||0)+earned;localStorage.setItem(starsKey(),String(total));$('mgTimer').classList.remove('mg-frenzy');$('mgTitle').textContent=earned===3?'🏆 완벽한 플레이!':'🎉 도전 완료!';$('mgDesc').textContent='다음 판에는 기록을 넘어보세요!';board.innerHTML=`<div class="mg-result"><div class="mg-stars">${'⭐'.repeat(earned)}${'☆'.repeat(3-earned)}</div>획득 점수<br><span style="font-size:46px;color:#a66a12">${score}</span><br>최고 기록 ${Math.max(old,score)}점<br><small>이번 획득 별 ${earned}개 · 누적 별 ${total}개</small></div>`;feedback(bonus?'보너스 게임 완료!':'이제 오늘의 영어 문장을 만나볼까요?',true);$('mgStart').style.display='inline-block';$('mgStart').textContent='학습 화면으로 이동';$('mgSkip').style.display='none';$('mgStart').onclick=closeToStudy;beep(earned===3?880:660,.25);}
+ function closeToStudy(){clearInterval(tick);clearGameTimers();layer.classList.remove('show');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';$('mgStart').onclick=start;$('mgTimer').classList.remove('mg-frenzy');window.scrollTo({top:0,behavior:'smooth'});}
+ function memory(){const icons=['🍎','🚗','🐱','⚽','🌈','🍕','🐼','🚀','🎸','🦊'];let deck=[...icons.slice(0,8),...icons.slice(0,8)].sort(()=>Math.random()-.5),opened=[],matched=0,locked=false;board.innerHTML=deck.map((v,i)=>`<button class="mg-card" data-i="${i}">❔</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||locked||b.disabled||opened.some(x=>x.b===b))return;const i=+b.dataset.i;b.textContent=deck[i];opened.push({b,v:deck[i]});beep(400,.04);if(opened.length===2){if(opened[0].v===opened[1].v){opened.forEach(x=>{x.b.disabled=true;x.b.classList.add('mg-hit')});matched+=2;add(8);opened=[];if(matched===deck.length){feedback('🌟 전부 찾았어요! 새 카드판 보너스!',true);add(20);matched=0;later(()=>{if(active)memory()},450)}}else{locked=true;miss('짝이 아니에요! 다음엔 기억해봐요.');const pair=opened;later(()=>{pair.forEach(x=>x.b.textContent='❔');opened=[];locked=false},650)}}});}
+ function mole(){let target=-1,seq=0;const draw=()=>{if(!active)return;seq++;const r=Math.random();target=Math.floor(Math.random()*9);const type=r<.16?'💣':r<.34?'🌟':'🐹';board.innerHTML=Array.from({length:9},(_,i)=>`<button class="mg-target" data-i="${i}">${i===target?type:'🕳️'}</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;if(+b.dataset.i!==target){miss('빈 구멍! 다시 집중!');return;}if(type==='💣'){score=Math.max(0,score-3);combo=0;updateHUD();feedback('💥 폭탄이다! -3점',false);beep(130,.16,'sawtooth');vibrate(70)}else{add(type==='🌟'?5:2);if(type==='🌟')feedback('✨ 골드 두더지! +5점',true)}draw()});};draw();const loop=()=>{if(!active)return;draw();later(loop,Math.max(330,850-(level-1)*115));};later(loop,850);}
+ function color(){const colors=[['빨강','#e95d54'],['파랑','#4e8ed8'],['노랑','#d9ae32'],['초록','#55a66a']];let target,mode;const draw=()=>{if(!active)return;round++;target=colors[Math.floor(Math.random()*4)];mode=Math.random()<.5?'word':'ink';const shown=colors[Math.floor(Math.random()*4)];board.innerHTML=`<div style="width:100%"><div class="small" style="font-weight:900;font-size:15px">${mode==='word'?'글자에 적힌 색깔을 고르세요':'글자 자체의 색깔을 고르세요'}</div><div class="mg-big" style="color:${mode==='word'?shown[1]:target[1]};margin:12px 0">${mode==='word'?target[0]:shown[0]}</div><div class="small">헷갈리지 말고 지시를 확인!</div><div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:12px">${colors.map(c=>`<button data-c="${c[0]}" style="background:${c[1]};color:white;font-weight:900">${c[0]}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;const answer=target[0];if(b.dataset.c===answer){add(3);draw()}else miss('색깔 함정! 지시문을 다시 확인!')});};draw();}
+ function number(){let next=1,limit=12;const draw=()=>{if(!active)return;round++;let nums=Array.from({length:limit},(_,i)=>i+1).sort(()=>Math.random()-.5);board.innerHTML=`<div style="width:100%;text-align:center"><div class="small">이번 목표: <b style="font-size:20px;color:#a66a12">${next} → ${limit}</b></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px">${nums.map(n=>`<button data-n="${n}" style="width:100%">${n}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||b.disabled)return;if(+b.dataset.n===next){b.disabled=true;b.classList.add('mg-hit');add(1);next++;if(next>limit){feedback('🚀 세트 클리어! 다음 판은 더 빠르게!',true);add(10);next=1;later(draw,250)}}else miss(`${next}부터 찾아야 해요!`)});};draw();}
+ function dodge(){let roundNo=0;const draw=()=>{if(!active)return;roundNo++;const safe=Math.floor(Math.random()*3),hazard=Math.random()<.35?Math.floor(Math.random()*3):-1;board.innerHTML=`<div style="width:100%"><div class="mg-big" style="font-size:36px">⭐ 별이 떨어진다!</div><div class="small">별이 있는 길을 선택하세요. 폭탄은 피하기!</div><div style="display:flex;justify-content:space-around;gap:7px;margin-top:16px">${[0,1,2].map(i=>`<button class="mg-lane" data-lane="${i}">${i===safe?'⭐':i===hazard?'💣':'☁️'}<br><small>${i+1}번 길</small></button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;const i=+b.dataset.lane;if(i===safe){add(4);feedback('별 획득! ✨',true)}else if(i===hazard){score=Math.max(0,score-4);combo=0;updateHUD();miss('💥 폭탄! -4점');}else{miss('별을 놓쳤어요!');}later(draw,350)});};draw();}
+ $('mgStart').onclick=start;$('mgSkip').onclick=()=>{clearInterval(tick);clearGameTimers();active=false;layer.classList.remove('show');$('mgTimer').classList.remove('mg-frenzy');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';};
+ $('mgSound').onclick=()=>{sound=!sound;$('mgSound').textContent=sound?'🔊 소리 켬':'🔇 소리 끔';if(sound)beep(700,.08);};
+ const bonusBtn=$('bonusGameBtn');if(bonusBtn)bonusBtn.onclick=()=>open(true);
+ const launchKey=`ilbbangMiniLaunchedV2_${profile()}_${today}`;
  if(!localStorage.getItem(launchKey)){localStorage.setItem(launchKey,'1');setTimeout(()=>open(false),650);}
 })();
 </script>

@@ -625,9 +625,13 @@ $login('resetStudyRecords').onclick = async () => {
   const selected = profiles.find(p => p.id === activeProfileId);
   if (!selected) return;
   if (!confirm(`현재 선택된 '${selected.name}' 프로필의 영어 학습 완료 기록을 초기화할까요?\n\n문장별 체크와 날짜별 완료 기록만 삭제됩니다. 다른 프로필과 게임·별·보상 기록은 유지됩니다.`)) return;
-  const phrase = prompt(`실수 방지를 위해 '${selected.name}' 프로필의 학습 기록을 지우려면 '초기화'라고 입력해 주세요.`);
-  if (phrase !== '초기화') {
-    $login('resetStudyStatus').textContent = '초기화를 취소했어요.';
+  const phrase = prompt(`마지막 확인입니다.
+
+초기화할 프로필: ${selected.name}
+
+정말 이 프로필의 학습 기록을 지우려면 프로필 이름을 똑같이 입력해 주세요.`);
+  if (phrase !== selected.name) {
+    $login('resetStudyStatus').textContent = '프로필 이름이 일치하지 않아 초기화를 취소했어요.';
     return;
   }
   const before = readLocalSnapshot();

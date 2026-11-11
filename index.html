@@ -458,6 +458,12 @@ panel.innerHTML = `
           <div class="small" style="margin:8px 0">표시 방식: 휴대폰 알림 + 앱 내부 축하 팝업</div>
           <button id="notifySave" type="button" class="primary">알림 설정 저장</button>
           <button id="parentLock" type="button">잠그기</button>
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
+            <strong style="font-size:14px">📚 자녀 학습 기록 초기화</strong>
+            <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장별 체크와 날짜별 학습 완료 기록만 초기화합니다. 문장, 프로필, 복습 목록, 별·보상, 게임 기록, 알림 설정은 유지됩니다.</div>
+            <button id="resetStudyRecords" type="button" style="border-color:#c66;color:#a33">선택한 프로필의 학습 기록 초기화</button>
+            <div class="small" id="resetStudyStatus" style="margin-top:8px" aria-live="polite"></div>
+          </div>
           <div class="small" id="notifyStatus" style="margin-top:8px" aria-live="polite"></div>
         </div>
       </div>
@@ -610,6 +616,33 @@ $login('notifySave').onclick = async () => {
     if (enabled) await registerPushDevice();
     else $login('notifyStatus').textContent = '가족 알림을 껐어요. 기기 등록 정보는 유지되며 발송 대상에서 제외됩니다.';
   } catch (err) { $login('notifyStatus').textContent = '저장 또는 푸시 연결 실패: ' + (err.code || err.message) + ' · Firestore 보안 규칙을 확인해 주세요.'; }
+};
+$login('resetStudyRecords').onclick = async () => {
+  if (!parentSettingsUnlocked || !syncReady || !currentUid) {
+    $login('resetStudyStatus').textContent = '부모 PIN 잠금 해제와 클라우드 로그인이 필요합니다.';
+    return;
+  }
+  const selected = profiles.find(p => p.id === activeProfileId);
+  if (!selected) return;
+  if (!confirm(`현재 선택된 '${selected.name}' 프로필의 영어 학습 완료 기록을 초기화할까요?\n\n문장별 체크와 날짜별 완료 기록만 삭제됩니다. 다른 프로필과 게임·별·보상 기록은 유지됩니다.`)) return;
+  const phrase = prompt(`실수 방지를 위해 '${selected.name}' 프로필의 학습 기록을 지우려면 '초기화'라고 입력해 주세요.`);
+  if (phrase !== '초기화') {
+    $login('resetStudyStatus').textContent = '초기화를 취소했어요.';
+    return;
+  }
+  const before = readLocalSnapshot();
+  try {
+    localStorage.removeItem('ilbbangSeq600Records');
+    localStorage.removeItem('ilbbangSeq600Checked');
+    await persistProfileState();
+    lastCloudData = readLocalSnapshot();
+    if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
+    $login('resetStudyStatus').textContent = `'${selected.name}' 프로필의 영어 학습 완료 기록을 초기화했어요.`;
+    status(`☁️ ${selected.name} 프로필의 학습 기록 초기화 및 동기화 완료`);
+  } catch (err) {
+    applySnapshot(before);
+    $login('resetStudyStatus').textContent = '초기화 저장에 실패했어요. 기존 기록을 복구했습니다: ' + (err.message || err);
+  }
 };
 
 function updateProfileControls() {

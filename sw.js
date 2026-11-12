@@ -1,5 +1,4 @@
 
-
 /* 일빵빵 PWA + Firebase Cloud Messaging */
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
@@ -25,15 +24,15 @@ messaging.onBackgroundMessage(payload => {
     badge: './icon-192.png',
     tag: payload.data?.tag || 'ilbbang-family',
     data: {
-      url: payload.fcmOptions?.link ||
-        'https://creep1020.github.io/1-book/'
+      url: payload.fcmOptions?.link || 'https://creep1020.github.io/1-book/'
     }
   };
   return self.registration.showNotification(title, options);
 });
 
-// v6: 최신 앱 화면 우선 확인
-const CACHE = 'ilppang-seq-v6-fcm';
+// v8: 올바른 1-book 배포 주소 사용
+const CACHE = 'ilppang-seq-v8-fcm';
+
 const FILES = [
   './',
   './index.html',
@@ -54,9 +53,7 @@ self.addEventListener('activate', event => {
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(key =>
-            key.startsWith('ilppang-seq-') && key !== CACHE
-          )
+          .filter(key => key.startsWith('ilppang-seq-') && key !== CACHE)
           .map(key => caches.delete(key))
       )
     )
@@ -66,9 +63,10 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const request = event.request;
+
   if (request.method !== 'GET') return;
 
-  // HTML은 항상 최신 배포본을 우선 사용
+  // 첫 화면과 HTML은 최신 배포본 우선
   if (
     request.mode === 'navigate' ||
     (
@@ -81,9 +79,7 @@ self.addEventListener('fetch', event => {
         .then(response => {
           if (response && response.ok) {
             const copy = response.clone();
-            caches.open(CACHE).then(cache =>
-              cache.put(request, copy)
-            );
+            caches.open(CACHE).then(cache => cache.put(request, copy));
           }
           return response;
         })
@@ -98,16 +94,15 @@ self.addEventListener('fetch', event => {
   // 이미지와 아이콘은 캐시 우선
   event.respondWith(
     caches.match(request).then(cached =>
-      cached || fetch(request).then(response => {
+      cached ||
+      fetch(request).then(response => {
         if (
           response &&
           response.ok &&
           new URL(request.url).origin === self.location.origin
         ) {
           const copy = response.clone();
-          caches.open(CACHE).then(cache =>
-            cache.put(request, copy)
-          );
+          caches.open(CACHE).then(cache => cache.put(request, copy));
         }
         return response;
       })
@@ -137,3 +132,4 @@ self.addEventListener('notificationclick', event => {
     })
   );
 });
+

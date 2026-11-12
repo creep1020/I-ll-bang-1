@@ -58,6 +58,18 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 .mg-lane{width:30%!important;height:112px!important;font-size:30px!important;background:linear-gradient(#fff,#e7e4dc)!important}
 .mg-action{background:#e8efdf!important;border-color:#b8cba8!important;font-weight:900}
 @media(max-height:720px){#miniGameCard{padding:12px}#mgBoard{min-height:205px;margin:8px 0}.mg-card{height:58px!important}}
+
+.keke-growth{margin:12px 0 16px;padding:14px 12px 12px;border:1px solid #eadcfb;border-radius:18px;background:linear-gradient(145deg,#fff5fb 0%,#f2f4ff 52%,#fff9e8 100%);overflow:hidden}
+.keke-growth-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#5d438b}
+.keke-growth-head strong{font-size:15px}.keke-stage-pill{flex:0 0 auto;padding:5px 10px;border-radius:99px;background:#8d6bd6;color:white;font-size:12px;font-weight:800}
+.keke-art-wrap{position:relative;display:flex;justify-content:center;align-items:center;min-height:190px;margin:5px auto 0;max-width:290px}
+#kekeStageImage{display:block;width:min(100%,260px);height:205px;object-fit:contain;position:relative;z-index:1;filter:drop-shadow(0 7px 8px #9b78c733);animation:kekeFloat 2.8s ease-in-out infinite}
+.keke-art-glow{position:absolute;inset:20px 8px;display:flex;align-items:flex-start;justify-content:space-around;color:#f3bd43;font-size:20px;opacity:.8;pointer-events:none}
+.keke-growth-name{text-align:center;font-size:17px;font-weight:900;color:#684a9d;margin:0 0 10px}
+.keke-growth-progress{height:9px;border-radius:99px;background:#e8def5;overflow:hidden}.keke-growth-progress-fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#f28bc2,#9b83e8,#ffc85d);transition:width .35s ease}
+.keke-growth-foot{display:flex;justify-content:space-between;gap:8px;margin-top:7px;color:#76678d;font-size:11px;font-weight:700}
+.keke-stage-dots{display:flex;justify-content:center;gap:8px;margin-top:9px;color:#b8a8d3;font-size:13px}.keke-stage-dots .active{color:#e78bb9;text-shadow:0 1px 3px #f5c4dc}
+@keyframes kekeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 </style></head>
  <script>
 if ('serviceWorker' in navigator) {
@@ -104,6 +116,14 @@ if ('serviceWorker' in navigator) {
 </section>
 <section class="panel" id="rewardPanel">
 <strong style="font-size:14px">⭐ 나의 학습 보상</strong>
+<div class="keke-growth" id="kekeGrowth">
+ <div class="keke-growth-head"><div><strong>🐭 케케의 30일 성장 모험</strong><div class="small" id="kekeGrowthCaption">매일 공부하고 케케와 함께 자라요!</div></div><span class="keke-stage-pill" id="kekeStagePill">1단계</span></div>
+ <div class="keke-art-wrap"><img id="kekeStageImage" src="./keke/keke-stage-1.webp" alt="아기 케케" loading="lazy"><div class="keke-art-glow">✦　⭐　✦</div></div>
+ <div class="keke-growth-name" id="kekeStageName">아기 케케</div>
+ <div class="keke-growth-progress"><div class="keke-growth-progress-fill" id="kekeGrowthProgressFill"></div></div>
+ <div class="keke-growth-foot"><span id="kekeCompletedDays">누적 학습 0/30일</span><span id="kekeNextStage">다음 모습까지 5일!</span></div>
+ <div class="keke-stage-dots" id="kekeStageDots"><span>●</span><span>○</span><span>○</span><span>○</span><span>○</span><span>○</span></div>
+</div>
 <div class="reward-stats">
  <div class="reward-main"><div class="small">사용 가능한 별 포인트</div><div class="reward-number"><span id="starBalance">0</span> ⭐</div><div class="small" id="starNote">오늘 학습을 완료하면 별 1개를 받을 수 있어요.</div></div>
  <div class="reward-streak"><div class="small">연속 학습</div><div class="streak-number">🔥 <span id="streakCount">0</span>일</div><div class="small" id="streakNote">하루씩 꾸준히 이어가 봐요!</div></div>
@@ -192,8 +212,27 @@ function starAwards(){return readMap(REWARD_KEY)}
 function redeemedRequests(){return readMap(REDEEM_KEY)}
 function availableStars(){const awards=starAwards(),spent=redeemedRequests();return Object.keys(awards).filter(k=>awards[k]).length-Object.values(spent).filter(x=>x&&x.status==='approved').reduce((a,x)=>a+(Number(x.cost)||0),0);}
 function awardToday(){const k=key(iso(today),currentDay()),awards=starAwards();if(!awards[k]){awards[k]=true;writeMap(REWARD_KEY,awards);}}
+function renderKekeGrowth(){
+ const records=readRecords();
+ const completedDays=new Set(Object.keys(records).filter(k=>records[k]).map(k=>k.split('|')[0])).size;
+ const days=Math.min(30,completedDays);
+ const stage=Math.min(6,Math.max(1,Math.ceil(days/5)));
+ const stageNames=['아기 케케','새싹 케케','날개 케케','왕관 케케','별빛 케케','완성 케케'];
+ const stageRanges=['1~5일','6~10일','11~15일','16~20일','21~25일','26~30일'];
+ const image=$('kekeStageImage');
+ image.src=`./keke/keke-stage-${stage}.webp`;
+ image.alt=stageNames[stage-1];
+ $('kekeStagePill').textContent=`${stage}단계 · ${stageRanges[stage-1]}`;
+ $('kekeStageName').textContent=stageNames[stage-1];
+ $('kekeCompletedDays').textContent=`누적 학습 ${days}/30일`;
+ $('kekeGrowthCaption').textContent=days>=30?'30일 완성! 케케가 멋지게 자랐어요!':'매일 공부하고 케케와 함께 자라요!';
+ $('kekeNextStage').textContent=days>=30?'최종 모습 완성!':`다음 모습까지 ${5-(days%5)}일!`;
+ $('kekeGrowthProgressFill').style.width=`${(days/30)*100}%`;
+ $('kekeStageDots').innerHTML=stageNames.map((_,i)=>`<span class="${i+1===stage?'active':''}">${i+1<=stage?'●':'○'}</span>`).join('');
+}
 function renderRewards(){
  const streak=currentStreak(),best=bestStreak(),balance=Math.max(0,availableStars());
+ renderKekeGrowth();
  $('starBalance').textContent=balance;$('streakCount').textContent=streak;
  $('starNote').textContent=readRecords()[key(iso(today),currentDay())]?'오늘의 별을 받았어요!':'오늘 학습을 완료하면 별 1개를 받아요.';
  $('streakNote').textContent=streak>=7?'대단해요! 7일 연속 학습을 달성했어요.':streak>0?`다음 7일 배지까지 ${7-streak}일 남았어요.`:'오늘 공부를 시작해 연속 기록을 만들어 봐요!';

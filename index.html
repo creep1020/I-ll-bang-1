@@ -205,6 +205,7 @@ function ensureReviewSchedules(){
 let reviewCurrentNo=null,reviewPassedInSession=0,reviewSessionTotal=0,reviewRecognition=null,reviewListening=false,reviewMode='scheduled',reviewFallbackNo=null,reviewFallbackMode=null;
 const reviewAttemptCounts=Object.create(null);
 const REWARD_KEY='ilbbangSeq600StarAwards',REDEEM_KEY='ilbbangSeq600RewardRequests';
+const KEKE_PROGRESS_KEY='ilbbangKekeGrowthDays';
 const REWARDS=[{id:'snack',cost:5,title:'작은 간식 고르기',desc:'좋아하는 간식 하나를 부모님과 골라요.'},{id:'play',cost:10,title:'가족 놀이 선택권',desc:'주말에 함께 할 놀이를 직접 골라요.'},{id:'outing',cost:20,title:'특별한 가족 활동',desc:'가고 싶은 곳이나 함께 할 활동을 정해요.'}];
 function studyDates(){return [...new Set(Object.keys(readRecords()).filter(k=>readRecords()[k]===true).map(k=>k.split('|')[0]))].sort();}
 function currentStreak(){const dates=new Set(studyDates());let d=new Date(today);if(!dates.has(iso(d))){d.setDate(d.getDate()-1);if(!dates.has(iso(d)))return 0;}let n=0;while(dates.has(iso(d))){n++;d.setDate(d.getDate()-1);}return n;}
@@ -212,10 +213,10 @@ function bestStreak(){const ds=studyDates();let best=0,run=0,prev=null;for(const
 function starAwards(){return readMap(REWARD_KEY)}
 function redeemedRequests(){return readMap(REDEEM_KEY)}
 function availableStars(){const awards=starAwards(),spent=redeemedRequests();return Object.keys(awards).filter(k=>awards[k]).length-Object.values(spent).filter(x=>x&&x.status==='approved').reduce((a,x)=>a+(Number(x.cost)||0),0);}
-function awardToday(){const k=key(iso(today),currentDay()),awards=starAwards();if(!awards[k]){awards[k]=true;writeMap(REWARD_KEY,awards);}}
+function kekeGrowthDays(){const saved=localStorage.getItem(KEKE_PROGRESS_KEY);if(saved!==null)return readMap(KEKE_PROGRESS_KEY);const initial={};studyDates().forEach(date=>initial[date]=true);writeMap(KEKE_PROGRESS_KEY,initial);return initial;}
+function awardToday(isNewCompletion=false){const k=key(iso(today),currentDay()),awards=starAwards();if(!awards[k]){awards[k]=true;writeMap(REWARD_KEY,awards);}if(isNewCompletion){const days=kekeGrowthDays();days[iso(today)]=true;writeMap(KEKE_PROGRESS_KEY,days);}}
 function renderKekeGrowth(){
- const records=readRecords();
- const completedDays=new Set(Object.keys(records).filter(k=>records[k]).map(k=>k.split('|')[0])).size;
+ const completedDays=Object.keys(kekeGrowthDays()).length;
  const days=Math.min(30,completedDays);
  const stage=Math.min(6,Math.max(1,Math.ceil(days/5)));
  const stageNames=['아기 케케','새싹 케케','날개 케케','왕관 케케','별빛 케케','완성 케케'];
@@ -465,7 +466,7 @@ $('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
 $('koreanBtn').onclick=()=>{viewMode='ko';render()};
 $('englishBtn').onclick=()=>{viewMode='en';render()};
 $('bothBtn').onclick=()=>{viewMode='both';render()};
-$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked');if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday();render()};
+$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked');if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday(true);render()};
 $('undoDone').onclick=()=>{if(previewDay!==null)return;let r=readRecords();delete r[key(iso(today),currentDay())];localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));render()};
 $('prevMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()-1,1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+1,1);renderCalendar()};
@@ -478,7 +479,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -488,7 +489,7 @@ $('importBackup').onclick=()=>$('backupFile').click();
 $('backupFile').onchange=async e=>{
  const file=e.target.files&&e.target.files[0];if(!file)return;
  try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
-  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY];
+  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY];
   for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
@@ -603,7 +604,7 @@ async function registerPushDevice() {
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
   'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, 'ilbbangSeqVoiceRate',
-  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests'
+  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays'
 ];
 let syncReady = false;
 let suppressSync = false;
@@ -658,6 +659,18 @@ panel.innerHTML = `
             <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장별 체크와 날짜별 학습 완료 기록만 초기화합니다. 다른 프로필과 문장, 복습 목록, 별·보상, 게임 기록, 알림 설정은 유지됩니다.</div>
             <button id="resetStudyRecords" type="button" style="border-color:#c66;color:#a33;width:100%">선택한 프로필의 학습 기록 초기화</button>
             <div class="small" id="resetStudyStatus" style="margin-top:8px" aria-live="polite"></div>
+          </div>
+          <div style="margin:0 0 16px;padding:12px;border:1px solid #e2c77d;border-radius:12px;background:#fffdf5">
+            <strong style="font-size:14px">⭐ 별 포인트만 초기화</strong>
+            <div class="small" style="margin:6px 0">현재 프로필의 별 잔액과 사용 완료 내역을 초기화합니다. 학습·복습 기록과 케케 성장 단계는 유지됩니다.</div>
+            <button id="resetStarPoints" type="button" style="border-color:#c99b35;color:#8a6415;width:100%">별 포인트 초기화</button>
+            <div class="small" id="resetStarStatus" style="margin-top:8px" aria-live="polite"></div>
+          </div>
+          <div style="margin:0 0 16px;padding:12px;border:1px solid #c9b7e8;border-radius:12px;background:#fbf9ff">
+            <strong style="font-size:14px">🐭 케케만 초기화</strong>
+            <div class="small" style="margin:6px 0">케케를 1일 차 아기 모습으로 되돌립니다. 학습·복습 기록과 별 포인트는 유지되며, 초기화 후 새로 완료한 학습일부터 다시 성장합니다.</div>
+            <button id="resetKekeGrowth" type="button" style="border-color:#9b80ca;color:#7252a6;width:100%">케케 성장 초기화</button>
+            <div class="small" id="resetKekeStatus" style="margin-top:8px" aria-live="polite"></div>
           </div>
           <label style="display:flex;gap:8px;align-items:center"><input id="notifyEnabled" type="checkbox"> 가족 알림 켜기</label>
           <label for="notifyTime" style="display:block;margin-top:10px">알림 시간</label>
@@ -721,7 +734,7 @@ function mergeMapStrings(cloudValue, localValue) {
 }
 function mergeSnapshots(cloudData, localData) {
   const merged = { ...(cloudData || {}) };
-  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,'ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests'];
+  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,'ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests','ilbbangKekeGrowthDays'];
   for (const key of mapKeys) {
     if (cloudData?.[key] !== undefined || localData?.[key] !== undefined) merged[key] = mergeMapStrings(cloudData?.[key], localData?.[key]);
   }
@@ -862,6 +875,44 @@ DAY를 1일차로 되돌리고 학습 완료 기록을 지우려면 프로필 �
     $login('resetStudyStatus').textContent = '초기화 저장에 실패했어요. 기존 기록을 복구했습니다: ' + (err.message || err);
   }
 };
+
+async function confirmRewardReset(kind, statusId) {
+  const output = $login(statusId);
+  if (!parentSettingsUnlocked || !syncReady || !currentUid) {
+    output.textContent = '부모 PIN 잠금 해제와 클라우드 로그인이 필요합니다.';
+    return;
+  }
+  const selected = profiles.find(p => p.id === activeProfileId);
+  if (!selected) return;
+  const isStars = kind === 'stars';
+  const title = isStars ? '별 포인트' : '케케 성장';
+  if (!confirm(`현재 선택된 '${selected.name}' 프로필의 ${title}을 초기화할까요?\n\n${isStars ? '별 잔액을 0개로 만들고 사용 완료 내역을 정리합니다. 케케와 학습 기록은 유지됩니다.' : '케케를 아기 케케로 되돌립니다. 별 포인트와 학습 기록은 유지됩니다.'}`)) return;
+  const phrase = prompt(`마지막 확인입니다.\n\n초기화할 프로필: ${selected.name}\n\n계속하려면 프로필 이름을 똑같이 입력해 주세요.`);
+  if (phrase !== selected.name) { output.textContent = '프로필 이름이 일치하지 않아 초기화를 취소했어요.'; return; }
+  const before = readLocalSnapshot();
+  try {
+    if (isStars) {
+      writeMap(REWARD_KEY, {});
+      const requests = redeemedRequests();
+      const pending = Object.fromEntries(Object.entries(requests).filter(([, item]) => item && item.status === 'pending'));
+      writeMap(REDEEM_KEY, pending);
+      output.textContent = '별 포인트를 0개로 초기화했어요. 케케와 학습 기록은 그대로예요.';
+    } else {
+      writeMap(KEKE_PROGRESS_KEY, {});
+      output.textContent = '케케를 1일 차 아기 모습으로 초기화했어요. 다음 새 학습 완료부터 다시 성장해요.';
+    }
+    renderRewards();
+    await persistProfileState();
+    lastCloudData = readLocalSnapshot();
+    status(`☁️ ${selected.name} 프로필의 ${title} 초기화 및 동기화 완료`);
+  } catch (err) {
+    applySnapshot(before);
+    renderRewards();
+    output.textContent = '초기화 저장에 실패했어요. 기존 데이터를 복구했습니다: ' + (err.message || err);
+  }
+}
+$login('resetStarPoints').onclick = () => confirmRewardReset('stars', 'resetStarStatus');
+$login('resetKekeGrowth').onclick = () => confirmRewardReset('keke', 'resetKekeStatus');
 
 function updateProfileControls() {
   const controls = $login('profileControls');

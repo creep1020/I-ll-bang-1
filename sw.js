@@ -24,14 +24,14 @@ messaging.onBackgroundMessage(payload => {
     badge: './icon-192.png',
     tag: payload.data?.tag || 'ilbbang-family',
     data: {
-      url: payload.fcmOptions?.link || 'https://creep1020.github.io/1-book/'
+      url: payload.fcmOptions?.link || 'https://creep1020.github.io/I-ll-bang-1/'
     }
   };
   return self.registration.showNotification(title, options);
 });
 
-// v8: 올바른 1-book 배포 주소 사용
-const CACHE = 'ilppang-seq-v8-fcm';
+// v9: 올바른 I-ll-bang-1 배포 주소
+const CACHE = 'ilppang-seq-v9-fcm';
 
 const FILES = [
   './',
@@ -115,7 +115,7 @@ self.addEventListener('notificationclick', event => {
 
   const target =
     event.notification.data?.url ||
-    'https://creep1020.github.io/1-book/';
+    'https://creep1020.github.io/I-ll-bang-1/';
 
   event.waitUntil(
     clients.matchAll({
@@ -132,4 +132,3 @@ self.addEventListener('notificationclick', event => {
     })
   );
 });
-

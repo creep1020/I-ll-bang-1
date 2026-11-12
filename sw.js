@@ -18,6 +18,7 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage(payload => {
   const title = payload.notification?.title || '일빵빵 가족 알림';
+
   const options = {
     body: payload.notification?.body || '오늘의 영어 학습을 확인해 주세요.',
     icon: './icon-192.png',
@@ -27,11 +28,12 @@ messaging.onBackgroundMessage(payload => {
       url: payload.fcmOptions?.link || 'https://creep1020.github.io/I-ll-bang-1/'
     }
   };
+
   return self.registration.showNotification(title, options);
 });
 
-// v9: 올바른 I-ll-bang-1 배포 주소
-const CACHE = 'ilppang-seq-v9-fcm';
+// v10: 최신 HTML 배포본 우선 적용
+const CACHE = 'ilppang-seq-v10-fcm';
 
 const FILES = [
   './',
@@ -42,23 +44,37 @@ const FILES = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(FILES))
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+
+    for (const file of FILES) {
+      const response = await fetch(file, { cache: 'reload' });
+
+      if (!response.ok) {
+        throw new Error(`파일 업데이트 실패: ${file}`);
+      }
+
+      await cache.put(file, response);
+    }
+  })());
+
   self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys
-          .filter(key => key.startsWith('ilppang-seq-') && key !== CACHE)
-          .map(key => caches.delete(key))
-      )
-    )
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const keys = await caches.keys();
+
+    await Promise.all(
+      keys
+        .filter(key =>
+          key.startsWith('ilppang-seq-') && key !== CACHE
+        )
+        .map(key => caches.delete(key))
+    );
+
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', event => {
@@ -66,7 +82,7 @@ self.addEventListener('fetch', event => {
 
   if (request.method !== 'GET') return;
 
-  // 첫 화면과 HTML은 최신 배포본 우선
+  // 첫 화면과 HTML은 네트워크 최신본 우선
   if (
     request.mode === 'navigate' ||
     (
@@ -81,6 +97,7 @@ self.addEventListener('fetch', event => {
             const copy = response.clone();
             caches.open(CACHE).then(cache => cache.put(request, copy));
           }
+
           return response;
         })
         .catch(async () => {
@@ -88,6 +105,7 @@ self.addEventListener('fetch', event => {
           return cached || caches.match('./index.html');
         })
     );
+
     return;
   }
 
@@ -104,6 +122,7 @@ self.addEventListener('fetch', event => {
           const copy = response.clone();
           caches.open(CACHE).then(cache => cache.put(request, copy));
         }
+
         return response;
       })
     )
@@ -128,6 +147,7 @@ self.addEventListener('notificationclick', event => {
           return client.focus();
         }
       }
+
       return clients.openWindow(target);
     })
   );

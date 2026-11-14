@@ -294,7 +294,7 @@ function speakEnglish(text){
 // 문장 녹음 + 영어 음성인식 일치율 검사
 const SPEAKING_PASS_KEY='ilbbangSeq600SpeakingPass';
 let activeRecorder=null, activeStream=null, activeNo=null, activeChunks=[], activeAudioUrl=null;
-let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null;
+let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null, activeRecognitionError='';
 function speakingPasses(){return readMap(SPEAKING_PASS_KEY)}
 function speakingKey(no){return key(iso(today),currentDay())+'|'+no}
 function normalizeWords(value){return String(value||'').toLowerCase().replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean)}
@@ -324,19 +324,19 @@ function finishSpeakingAttempt(){
  if(passes)saved[k]={passed:true,percent,transcript:spoken,at:new Date().toISOString()};
  else delete saved[k];
  writeMap(SPEAKING_PASS_KEY,saved);
- const transcript=spoken?`<br><b>인식 결과:</b> “${escapeHtml(spoken)}”`:'<br>인식된 음성이 없어요.';
+ const transcript=spoken?`<br><b>인식 결과:</b> “${escapeHtml(spoken)}”`:`<br>인식된 음성이 없어요.${activeRecognitionError?` (오류: ${escapeHtml(activeRecognitionError)})`:''}`;
  const result=passes
   ?`<b>✅ 통과 · 일치율 ${percent}%</b>${transcript}<br>이 문장은 말하기 학습을 통과했어요.`
   :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}%</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
+ updateRecordResult(no,result);
  if(activeAudioUrl)URL.revokeObjectURL(activeAudioUrl);
  const mime=activeRecorder?.mimeType||'audio/webm';
  const blob=new Blob(activeChunks,{type:mime});
- if(blob.size)activeAudioUrl=URL.createObjectURL(blob);
+ if(blob.size){activeAudioUrl=URL.createObjectURL(blob);const el=document.getElementById('record-'+no);if(el){const audio=document.createElement('audio');audio.controls=true;audio.className='record-audio';audio.src=activeAudioUrl;el.appendChild(audio);}}
  if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
- activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;
+ activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;activeRecognitionError='';
+ const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
  render();
- updateRecordResult(no,result);
- if(blob.size){const el=document.getElementById('record-'+no);if(el){const audio=document.createElement('audio');audio.controls=true;audio.className='record-audio';audio.src=activeAudioUrl;el.appendChild(audio);}}
 }
 async function startRecording(no){
  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -347,41 +347,61 @@ async function startRecording(no){
  if(!item)return;
  try{
   activeNo=no;activeSentence=item;activeChunks=[];activeTranscript='';recognitionEnded=false;recorderEnded=false;
-  updateRecordResult(no,'마이크와 영어 음성인식을 준비하고 있어요…');
+  updateRecordResult(no,'영어 음성인식을 먼저 시작하고 있어요…');
+  // Chrome 음성인식이 마이크를 먼저 열도록 순서를 변경한다.
+  const recognition=new Recognition();activeRecognition=recognition;
+  recognition.lang='en-US';recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=1;
+  let latestTranscript='';
+  recognition.onresult=e=>{
+   const parts=[];
+   for(let i=0;i<e.results.length;i++){
+    const text=e.results[i]?.[0]?.transcript||'';
+    if(text)parts.push(text);
+   }
+   latestTranscript=parts.join(' ').trim();
+   activeTranscript=latestTranscript;
+   updateRecordResult(no,`🔴 문장을 영어로 말해 주세요.<br><b>인식 중:</b> ${escapeHtml(latestTranscript)}`);
+  };
+  recognition.onerror=e=>{
+   activeRecognitionError=e.error||'unknown';
+   updateRecordResult(no,`음성인식 오류(${escapeHtml(activeRecognitionError)})가 발생했어요. 마이크 권한과 인터넷 연결을 확인해 주세요.`);
+  };
+  recognition.onend=()=>{
+   recognitionEnded=true;
+   if(latestTranscript)activeTranscript=latestTranscript;
+   finishSpeakingAttempt();
+  };
+  activeRecognitionError='';
+  await new Promise((resolve,reject)=>{
+   recognition.onstart=()=>resolve();
+   const priorError=recognition.onerror;
+   recognition.onerror=e=>{if(!recognitionEnded){activeRecognitionError=e.error||'unknown';if(e.error==='not-allowed'||e.error==='service-not-allowed')reject(new Error('마이크 권한이 거부됐어요.'));}};
+   try{recognition.start();}catch(e){reject(e);}
+   setTimeout(()=>{if(!activeRecognition.started && !recognitionEnded)resolve();},900);
+  });
+  // 음성인식이 시작된 뒤 녹음 스트림을 연다.
   activeStream=await navigator.mediaDevices.getUserMedia({audio:true});
   activeRecorder=new MediaRecorder(activeStream);
   activeRecorder.ondataavailable=e=>{if(e.data&&e.data.size)activeChunks.push(e.data)};
   activeRecorder.onstop=()=>{recorderEnded=true;finishSpeakingAttempt();};
-  const recognition=new Recognition();activeRecognition=recognition;
-  recognition.lang='en-US';recognition.continuous=true;recognition.interimResults=false;recognition.maxAlternatives=1;
-  recognition.onresult=e=>{
-   for(let i=e.resultIndex;i<e.results.length;i++){
-    if(e.results[i].isFinal)activeTranscript+=(activeTranscript?' ':'')+(e.results[i][0]?.transcript||'');
-   }
-  };
-  recognition.onerror=e=>{
-   if(e.error==='not-allowed'||e.error==='service-not-allowed')activeTranscript='';
-   updateRecordResult(no,`음성인식 오류(${escapeHtml(e.error||'unknown')})가 발생했어요. 녹음을 끝낸 뒤 다시 시도해 주세요.`);
-  };
-  recognition.onend=()=>{recognitionEnded=true;finishSpeakingAttempt();};
   activeRecorder.start();
-  recognition.start();
-  updateRecordResult(no,'🔴 문장을 영어로 말해 주세요. 다 말한 뒤 <b>녹음 종료</b>를 누르세요.');
+  updateRecordResult(no,'🔴 문장을 영어로 말해 주세요. 화면에 인식 중인 문장이 표시됩니다. 다 말한 뒤 <b>녹음 종료</b>를 누르세요.');
   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏹ 녹음 종료';
  }catch(err){
   try{if(activeRecognition)activeRecognition.abort()}catch(e){}
   if(activeRecorder&&activeRecorder.state!=='inactive'){try{activeRecorder.stop()}catch(e){}}
   if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
-  activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;recognitionEnded=true;recorderEnded=true;
+  activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;activeRecognitionError='';recognitionEnded=true;recorderEnded=true;
   updateRecordResult(no,'녹음 또는 음성인식을 시작하지 못했어요. 크롬의 마이크 권한을 확인하고 다시 시도해 주세요.');
   alert('녹음/음성인식을 시작하지 못했어요. 마이크 권한과 인터넷 연결을 확인해 주세요. ('+err.message+')');
  }
 }
 function finishRecording(){
  if(activeNo===null)return;
- if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();else recorderEnded=true;
+ // 음성인식을 먼저 정상 종료해 마지막 인식 결과가 전달될 시간을 준다.
  if(activeRecognition){try{activeRecognition.stop()}catch(e){recognitionEnded=true;}}
  else recognitionEnded=true;
+ if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();else recorderEnded=true;
  finishSpeakingAttempt();
 }
 

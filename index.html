@@ -221,8 +221,9 @@ function renderKekeGrowth(){
  const completedDays=Object.keys(kekeGrowthDays()).length;
  const days=Math.min(30,completedDays);
  const actualStage=Math.min(6,Math.max(1,Math.ceil(days/5)));
- const stage=(parentSettingsUnlocked && kekePreviewStage!==null)?kekePreviewStage:actualStage;
- const isPreview=parentSettingsUnlocked && kekePreviewStage!==null;
+ const parentUnlocked=window.ilbbangIsParentSettingsUnlocked?.()===true;
+ const stage=(parentUnlocked && kekePreviewStage!==null)?kekePreviewStage:actualStage;
+ const isPreview=parentUnlocked && kekePreviewStage!==null;
  const stageNames=['아기 뭉이','새싹 뭉이','날개 뭉이','왕관 뭉이','별빛 뭉이','완성 뭉이'];
  const stageRanges=['1~5일','6~10일','11~15일','16~20일','21~25일','26~30일'];
  const image=$('kekeStageImage');
@@ -241,12 +242,19 @@ image.src=KEKE_STAGE_IMAGES[stage-1];
  const previewButtons=$('kekePreviewButtons');if(previewButtons){previewButtons.querySelectorAll('[data-preview-stage]').forEach(btn=>btn.classList.toggle('active',isPreview&&Number(btn.dataset.previewStage)===stage));}
  const previewStatus=$('kekePreviewStatus');if(previewStatus)previewStatus.textContent=isPreview?`${stage}단계 ${stageNames[stage-1]}를 보고 있어요. 실제 누적 학습 ${days}/30일은 변하지 않았습니다.`:'미리보기를 선택하지 않았습니다.';
 }
-const kekePreviewButtons=$('kekePreviewButtons');
-if(kekePreviewButtons){
- kekePreviewButtons.addEventListener('click',e=>{const btn=e.target.closest('[data-preview-stage]');if(!btn)return;if(!parentSettingsUnlocked){$('kekePreviewStatus').textContent='부모 PIN 잠금 해제가 필요합니다.';return;}kekePreviewStage=Number(btn.dataset.previewStage);renderKekeGrowth();});
-}
-const kekePreviewOff=$('kekePreviewOff');
-if(kekePreviewOff)kekePreviewOff.addEventListener('click',()=>{if(!parentSettingsUnlocked)return;kekePreviewStage=null;renderKekeGrowth();});
+// Preview controls are inserted later by the Firebase module, so use document-level delegation.
+document.addEventListener('click',e=>{
+ const btn=e.target.closest?.('[data-preview-stage]');
+ if(btn){
+  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){const status=$('kekePreviewStatus');if(status)status.textContent='부모 PIN 잠금 해제가 필요합니다.';return;}
+  kekePreviewStage=Number(btn.dataset.previewStage);renderKekeGrowth();return;
+ }
+ if(e.target.closest?.('#kekePreviewOff')){
+  if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
+  kekePreviewStage=null;renderKekeGrowth();
+ }
+});
+window.ilbbangOnParentSettingsChanged=()=>{if(typeof renderKekeGrowth==='function')renderKekeGrowth();};
 function renderRewards(){
  const streak=currentStreak(),best=bestStreak(),balance=Math.max(0,availableStars());
  renderKekeGrowth();
@@ -626,6 +634,7 @@ let lastCloudData = null;
 let stopCloudListener = null;
 let parentNotifySettings = { enabled:false, time:'19:00', sound:true, lockscreen:'full', pinHash:'' };
 let parentSettingsUnlocked = false;
+window.ilbbangIsParentSettingsUnlocked = () => parentSettingsUnlocked;
 let stopNotifySettingsListener = null;
 
 const panel = document.createElement('section');
@@ -840,6 +849,7 @@ $login('pinSave').onclick = async () => {
     parentNotifySettings = {...parentNotifySettings,pinHash};
     await setDoc(notifySettingsRef(), parentNotifySettings);
     parentSettingsUnlocked = true;
+    window.ilbbangOnParentSettingsChanged?.();
     $login('pinCreate').value = ''; $login('pinConfirm').value = '';
     showParentPinState();
   } catch (err) { $login('parentPinHint').textContent = 'PIN 저장 실패: ' + err.message; }
@@ -849,9 +859,9 @@ $login('pinUnlock').onclick = async () => {
   if (!/^\d{4}$/.test(pin)) { $login('parentPinHint').textContent = '숫자 4자리를 입력해 주세요.'; return; }
   const hash = await hashParentPin(pin);
   if (hash !== parentNotifySettings.pinHash) { $login('parentPinHint').textContent = 'PIN이 맞지 않아요.'; $login('pinEntry').value=''; return; }
-  parentSettingsUnlocked = true; $login('pinEntry').value=''; showParentPinState();
+  parentSettingsUnlocked = true; window.ilbbangOnParentSettingsChanged?.(); $login('pinEntry').value=''; showParentPinState();
 };
-$login('parentLock').onclick = () => { parentSettingsUnlocked = false; kekePreviewStage=null; showParentPinState(); renderKekeGrowth(); };
+$login('parentLock').onclick = () => { parentSettingsUnlocked = false; kekePreviewStage=null; window.ilbbangOnParentSettingsChanged?.(); showParentPinState(); };
 $login('notifySave').onclick = async () => {
   if (!parentSettingsUnlocked) return;
   const enabled = $login('notifyEnabled').checked;
@@ -1173,7 +1183,7 @@ $login('parentJoin').onclick = async () => {
   } catch (error) { message('가입 실패: ' + error.message); }
 };
 $login('logout').onclick = async () => {
-  try { syncReady = false; currentUid = null; parentSettingsUnlocked = false; kekePreviewStage=null; if (stopNotifySettingsListener) { stopNotifySettingsListener(); stopNotifySettingsListener = null; } await signOut(auth); message('로그아웃했어요. 이 기기의 기존 기록은 삭제되지 않았어요.'); }
+  try { syncReady = false; currentUid = null; parentSettingsUnlocked = false; kekePreviewStage=null; window.ilbbangOnParentSettingsChanged?.(); if (stopNotifySettingsListener) { stopNotifySettingsListener(); stopNotifySettingsListener = null; } await signOut(auth); message('로그아웃했어요. 이 기기의 기존 기록은 삭제되지 않았어요.'); }
   catch (error) { message('로그아웃 실패: ' + error.message); }
 };
 $login('syncNow').onclick = () => {
@@ -1182,7 +1192,7 @@ $login('syncNow').onclick = () => {
 };
 onAuthStateChanged(auth, async user => {
   if (!user) {
-    syncReady = false; currentUid = null; parentSettingsUnlocked = false;
+    syncReady = false; currentUid = null; parentSettingsUnlocked = false; window.ilbbangOnParentSettingsChanged?.();
     if (stopNotifySettingsListener) { stopNotifySettingsListener(); stopNotifySettingsListener = null; }
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }

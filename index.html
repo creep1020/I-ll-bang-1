@@ -291,46 +291,107 @@ function speakEnglish(text){
  const voice=preferredVoice();if(voice)utterance.voice=voice;
  window.speechSynthesis.speak(utterance);
 }
-// 녹음만 제공: 음성 인식 및 원문 일치율 비교 기능은 사용하지 않습니다.
+// 문장 녹음 + 영어 음성인식 일치율 검사
+const SPEAKING_PASS_KEY='ilbbangSeq600SpeakingPass';
 let activeRecorder=null, activeStream=null, activeNo=null, activeChunks=[], activeAudioUrl=null;
-function stopRecordingResources(){
- if(activeRecorder&&activeRecorder.state!=='inactive'){try{activeRecorder.stop()}catch(e){}}
+let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null;
+function speakingPasses(){return readMap(SPEAKING_PASS_KEY)}
+function speakingKey(no){return key(iso(today),currentDay())+'|'+no}
+function normalizeWords(value){return String(value||'').toLowerCase().replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean)}
+function speakingMatch(expected,spoken){
+ const a=normalizeWords(expected),b=normalizeWords(spoken);
+ if(!a.length||!b.length)return 0;
+ // 단어 순서를 유지하는 최장 공통 부분수열 비율
+ let prev=new Array(b.length+1).fill(0);
+ for(let i=1;i<=a.length;i++){
+  const cur=new Array(b.length+1).fill(0);
+  for(let j=1;j<=b.length;j++)cur[j]=a[i-1]===b[j-1]?prev[j-1]+1:Math.max(prev[j],cur[j-1]);
+  prev=cur;
+ }
+ return Math.round(prev[b.length]/a.length*100);
+}
+function updateRecordResult(no,html){
+ const el=document.getElementById('record-'+no);
+ if(el){el.className='record-result show';el.innerHTML=html;}
+}
+function finishSpeakingAttempt(){
+ if(!recorderEnded||!recognitionEnded)return;
+ const no=activeNo,item=activeSentence,spoken=activeTranscript;
+ if(no===null||!item)return;
+ const percent=speakingMatch(item.en,spoken);
+ const passes=!!spoken&&percent>=50;
+ const saved=speakingPasses(),k=speakingKey(no);
+ if(passes)saved[k]={passed:true,percent,transcript:spoken,at:new Date().toISOString()};
+ else delete saved[k];
+ writeMap(SPEAKING_PASS_KEY,saved);
+ const transcript=spoken?`<br><b>인식 결과:</b> “${escapeHtml(spoken)}”`:'<br>인식된 음성이 없어요.';
+ const result=passes
+  ?`<b>✅ 통과 · 일치율 ${percent}%</b>${transcript}<br>이 문장은 말하기 학습을 통과했어요.`
+  :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}%</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
+ if(activeAudioUrl)URL.revokeObjectURL(activeAudioUrl);
+ const mime=activeRecorder?.mimeType||'audio/webm';
+ const blob=new Blob(activeChunks,{type:mime});
+ if(blob.size)activeAudioUrl=URL.createObjectURL(blob);
  if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
+ activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;
+ render();
+ updateRecordResult(no,result);
+ if(blob.size){const el=document.getElementById('record-'+no);if(el){const audio=document.createElement('audio');audio.controls=true;audio.className='record-audio';audio.src=activeAudioUrl;el.appendChild(audio);}}
 }
 async function startRecording(no){
+ const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!Recognition){alert('이 브라우저는 영어 음성인식을 지원하지 않아요. 안드로이드 크롬에서 다시 시도해 주세요.');return;}
  if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){alert('이 브라우저는 녹음을 지원하지 않아요. HTTPS 주소의 크롬에서 열어 주세요.');return;}
  if(activeNo!==null){alert('먼저 진행 중인 녹음을 마쳐 주세요.');return;}
+ const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);
+ if(!item)return;
  try{
-  activeNo=no;activeChunks=[];
-  const box=document.getElementById('record-'+no);
-  box.className='record-result show';box.textContent='마이크를 준비하고 있어요…';
+  activeNo=no;activeSentence=item;activeChunks=[];activeTranscript='';recognitionEnded=false;recorderEnded=false;
+  updateRecordResult(no,'마이크와 영어 음성인식을 준비하고 있어요…');
   activeStream=await navigator.mediaDevices.getUserMedia({audio:true});
   activeRecorder=new MediaRecorder(activeStream);
   activeRecorder.ondataavailable=e=>{if(e.data&&e.data.size)activeChunks.push(e.data)};
-  activeRecorder.onstop=()=>{
-   if(activeAudioUrl)URL.revokeObjectURL(activeAudioUrl);
-   const mime=activeRecorder?.mimeType||'audio/webm';
-   const blob=new Blob(activeChunks,{type:mime});
-   activeAudioUrl=URL.createObjectURL(blob);
-   const el=document.getElementById('record-'+no);
-   if(el){el.innerHTML='녹음이 끝났어요. 아래 재생 버튼을 눌러 들어보세요.';const audio=document.createElement('audio');audio.controls=true;audio.className='record-audio';audio.src=activeAudioUrl;el.appendChild(audio);}
-   if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
-   activeRecorder=null;activeNo=null;
-   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
+  activeRecorder.onstop=()=>{recorderEnded=true;finishSpeakingAttempt();};
+  const recognition=new Recognition();activeRecognition=recognition;
+  recognition.lang='en-US';recognition.continuous=true;recognition.interimResults=false;recognition.maxAlternatives=1;
+  recognition.onresult=e=>{
+   for(let i=e.resultIndex;i<e.results.length;i++){
+    if(e.results[i].isFinal)activeTranscript+=(activeTranscript?' ':'')+(e.results[i][0]?.transcript||'');
+   }
   };
+  recognition.onerror=e=>{
+   if(e.error==='not-allowed'||e.error==='service-not-allowed')activeTranscript='';
+   updateRecordResult(no,`음성인식 오류(${escapeHtml(e.error||'unknown')})가 발생했어요. 녹음을 끝낸 뒤 다시 시도해 주세요.`);
+  };
+  recognition.onend=()=>{recognitionEnded=true;finishSpeakingAttempt();};
   activeRecorder.start();
-  box.textContent='🔴 녹음 중이에요. 다 말한 뒤 녹음 종료를 눌러 주세요.';
+  recognition.start();
+  updateRecordResult(no,'🔴 문장을 영어로 말해 주세요. 다 말한 뒤 <b>녹음 종료</b>를 누르세요.');
   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏹ 녹음 종료';
- }catch(err){stopRecordingResources();activeNo=null;activeRecorder=null;alert('녹음을 시작하지 못했어요. 크롬에서 마이크 권한을 허용했는지 확인해 주세요. ('+err.message+')');}
+ }catch(err){
+  try{if(activeRecognition)activeRecognition.abort()}catch(e){}
+  if(activeRecorder&&activeRecorder.state!=='inactive'){try{activeRecorder.stop()}catch(e){}}
+  if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
+  activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;recognitionEnded=true;recorderEnded=true;
+  updateRecordResult(no,'녹음 또는 음성인식을 시작하지 못했어요. 크롬의 마이크 권한을 확인하고 다시 시도해 주세요.');
+  alert('녹음/음성인식을 시작하지 못했어요. 마이크 권한과 인터넷 연결을 확인해 주세요. ('+err.message+')');
+ }
 }
-function finishRecording(){if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();}
+function finishRecording(){
+ if(activeNo===null)return;
+ if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();else recorderEnded=true;
+ if(activeRecognition){try{activeRecognition.stop()}catch(e){recognitionEnded=true;}}
+ else recognitionEnded=true;
+ finishSpeakingAttempt();
+}
 
 function render(){
  ensureReviewSchedules();
  const due=dueReviewItems();
  const day=currentDay(),data=DATA[day-1],records=readRecords(),done=!!records[key(iso(today),day)];
- const checked=readMap('ilbbangSeq600Checked'),review=readMap('ilbbangSeq600Review');
+ const checked=readMap('ilbbangSeq600Checked'),review=readMap('ilbbangSeq600Review'),speaking=speakingPasses();
  const allSentencesDone=data.items.every(x=>!!checked[x.no]);
+ const allSpeakingPassed=data.items.every(x=>!!speaking[speakingKey(x.no)]?.passed);
  const dailyPending=previewDay===null&&allSentencesDone?todayDailyReviewItems():[];
  const reviewModeNow=due.length?'scheduled':dailyPending.length?'daily':null;
  const reviewItems=due.length?due:dailyPending;
@@ -351,7 +412,8 @@ function render(){
  $('emptyReview').style.display=visible.length?'none':'block';
  $('sentenceList').innerHTML=visible.map(x=>{
   let text=viewMode==='ko'?escapeHtml(x.ko):viewMode==='en'?escapeHtml(x.en):`<div>${escapeHtml(x.ko)}</div><div class="english" style="font-size:.86em;color:#5f695e;margin-top:3px">${escapeHtml(x.en)}</div>`;
-  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">🎙 녹음</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result" id="record-${x.no}"></div></span></li>`;
+  const pass=speaking[speakingKey(x.no)];
+  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">${pass?.passed?'✅ 말하기 통과':'🎙 녹음'}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result" id="record-${x.no}">${pass?.passed?`<b>✅ 통과 · 일치율 ${pass.percent}%</b><br>인식 결과: “${escapeHtml(pass.transcript||'')}”`:''}</div></span></li>`;
  }).join('');
  $('koreanBtn').classList.toggle('active',viewMode==='ko');$('englishBtn').classList.toggle('active',viewMode==='en');$('bothBtn').classList.toggle('active',viewMode==='both');
  $('reviewGatePanel').style.display=reviewLocked?'block':'none';
@@ -361,11 +423,11 @@ function render(){
  $('sentenceStudyPanel').style.display=reviewLocked?'none':'block';
  $('studyActionsPanel').style.display=reviewLocked?'none':'block';
  if(reviewLocked){reviewMode=reviewModeNow;renderReviewGate(reviewItems,reviewModeNow);}
- $('markDone').disabled=previewDay!==null||done||!allSentencesDone||reviewLocked;
- $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':allSentencesDone?'✓ 오늘 학습 완료':'문장 학습을 모두 완료해 주세요';
+ $('markDone').disabled=previewDay!==null||done||!allSentencesDone||!allSpeakingPassed||reviewLocked;
+ $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':!allSentencesDone?'문장 학습을 모두 완료해 주세요':!allSpeakingPassed?'모든 문장의 녹음 통과가 필요해요':'✓ 오늘 학습 완료';
  $('undoDone').disabled=previewDay!==null||!done;
  $('bonusGameWrap').style.display=(previewDay===null&&done)?'block':'none';
- $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개를 먼저 통과해야 새 학습을 시작할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone?'모든 문장을 학습했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
+ $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개를 먼저 통과해야 새 학습을 시작할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone&&!allSpeakingPassed?`문장 학습은 체크했어요. 녹음 통과 ${data.items.filter(x=>speaking[speakingKey(x.no)]?.passed).length}/${data.items.length}개가 필요해요.`:allSentencesDone?'모든 문장을 학습하고 녹음도 통과했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
  renderCalendar();
  if(previewDay===null&&readRecords()[key(iso(today),currentDay())])awardToday();
  renderRewards();
@@ -486,7 +548,7 @@ $('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
 $('koreanBtn').onclick=()=>{viewMode='ko';render()};
 $('englishBtn').onclick=()=>{viewMode='en';render()};
 $('bothBtn').onclick=()=>{viewMode='both';render()};
-$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked');if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday(true);render()};
+$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked'),speaking=speakingPasses();if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}if(!items.every(x=>!!speaking[speakingKey(x.no)]?.passed)){alert('오늘의 모든 문장을 녹음하고 일치율 50% 이상을 통과해야 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday(true);render()};
 $('undoDone').onclick=()=>{if(previewDay!==null)return;let r=readRecords();delete r[key(iso(today),currentDay())];localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));render()};
 $('prevMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()-1,1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+1,1);renderCalendar()};
@@ -499,7 +561,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -509,7 +571,7 @@ $('importBackup').onclick=()=>$('backupFile').click();
 $('backupFile').onchange=async e=>{
  const file=e.target.files&&e.target.files[0];if(!file)return;
  try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
-  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY];
+  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY];
   for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');

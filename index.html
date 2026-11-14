@@ -294,9 +294,13 @@ function speakEnglish(text){
 // 문장 녹음 + 영어 음성인식 일치율 검사
 const SPEAKING_PASS_KEY='ilbbangSeq600SpeakingPass';
 let activeRecorder=null, activeStream=null, activeNo=null, activeChunks=[], activeAudioUrl=null;
-let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null, activeRecognitionError='';
-// 녹음 결과는 render()가 문장 목록을 다시 그려도 유지한다.
+let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null, activeRecognitionError='', finalizingRecording=false;
+// 녹음 결과와 재생 URL은 화면 갱신과 새로고침 이후에도 복구한다.
 const recordingResults={};
+const RECORDING_DB='ilbbang-recordings-v1';
+function recordingDb(){return new Promise((resolve,reject)=>{const req=indexedDB.open(RECORDING_DB,1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('audio'))db.createObjectStore('audio',{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('저장소 열기 실패'));});}
+async function saveRecordingBlob(no,blob,html){const db=await recordingDb();return new Promise((resolve,reject)=>{const tx=db.transaction('audio','readwrite');tx.objectStore('audio').put({id:speakingKey(no),blob,html,savedAt:Date.now()});tx.oncomplete=()=>{db.close();resolve(true)};tx.onerror=()=>{db.close();reject(tx.error||new Error('녹음 저장 실패'))};});}
+async function loadSavedRecordings(){try{const db=await recordingDb();const rows=await new Promise((resolve,reject)=>{const tx=db.transaction('audio','readonly'),store=tx.objectStore('audio'),out=[];const req=store.openCursor();req.onsuccess=()=>{const c=req.result;if(!c){resolve(out);return;}out.push(c.value);c.continue();};req.onerror=()=>reject(req.error);});db.close();const prefix=key(iso(today),currentDay())+'|';for(const row of rows){if(!String(row.id).startsWith(prefix))continue;const no=Number(String(row.id).split('|').pop());if(!Number.isFinite(no)||!row.blob||!row.blob.size)continue;const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)continue;const old=recordingResults[no]?.audioUrl;if(old)URL.revokeObjectURL(old);recordingResults[no]={html:row.html||'녹음이 저장되어 있어요.',audioUrl:URL.createObjectURL(row.blob)};}}catch(e){console.warn('저장된 녹음 복구 실패',e);}}
 function speakingPasses(){return readMap(SPEAKING_PASS_KEY)}
 function speakingKey(no){return key(iso(today),currentDay())+'|'+no}
 function normalizeWords(value){return String(value||'').toLowerCase().replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean)}
@@ -318,10 +322,11 @@ function updateRecordResult(no,html){
  const el=document.getElementById('record-'+no);
  if(el){el.className='record-result show';el.innerHTML=html+(recordingResults[no].audioUrl?`<audio controls class=\"record-audio\" src=\"${recordingResults[no].audioUrl}\"></audio>`:'');}
 }
-function finishSpeakingAttempt(){
- if(!recorderEnded||!recognitionEnded)return;
+async function finishSpeakingAttempt(){
+ if(!recorderEnded||!recognitionEnded||finalizingRecording)return;
  const no=activeNo,item=activeSentence,spoken=activeTranscript;
  if(no===null||!item)return;
+ finalizingRecording=true;
  const percent=speakingMatch(item.en,spoken);
  const passes=!!spoken&&percent>=50;
  const saved=speakingPasses(),k=speakingKey(no);
@@ -332,15 +337,17 @@ function finishSpeakingAttempt(){
  const result=passes
   ?`<b>✅ 통과 · 일치율 ${percent}%</b>${transcript}<br>이 문장은 말하기 학습을 통과했어요.`
   :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}%</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
- updateRecordResult(no,result);
- const mime=activeRecorder?.mimeType||'audio/webm';
+ const mime=activeRecorder?.mimeType||activeChunks[0]?.type||'audio/webm';
  const blob=new Blob(activeChunks,{type:mime});
  recordingResults[no]=recordingResults[no]||{};
  if(recordingResults[no].audioUrl)URL.revokeObjectURL(recordingResults[no].audioUrl);
- if(blob.size){activeAudioUrl=URL.createObjectURL(blob);recordingResults[no].audioUrl=activeAudioUrl;}
- recordingResults[no].html=result;
+ if(blob.size){
+  activeAudioUrl=URL.createObjectURL(blob);recordingResults[no].audioUrl=activeAudioUrl;recordingResults[no].html=result;
+  try{await saveRecordingBlob(no,blob,result);result += '<br>💾 녹음 파일이 이 기기에 저장됐어요.';recordingResults[no].html=result;}catch(saveErr){console.error('녹음 파일 저장 실패',saveErr);result += '<br>⚠️ 녹음 파일을 기기에 저장하지 못했어요.';recordingResults[no].html=result;}
+ }else{result += '<br>⚠️ 녹음 데이터가 만들어지지 않았어요. 마이크 권한과 브라우저 녹음 지원을 확인해 주세요.';recordingResults[no].html=result;}
+ updateRecordResult(no,result);
  if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
- activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;activeRecognitionError='';
+ activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;activeRecognitionError='';finalizingRecording=false;
  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
  render();
 }
@@ -629,7 +636,7 @@ $('sentenceList').addEventListener('click',e=>{
  writeMap('ilbbangSeq600Review',m);writeMap(REVIEW_SCHEDULE_KEY,schedule);render();
 });
 window.ilbbangRenderAfterCloudSync = render;
-render();
+loadSavedRecordings().finally(()=>render());
 
 // 음성 목록은 브라우저가 비동기로 제공할 수 있어 준비 완료 이벤트도 처리
 if('speechSynthesis' in window){populateVoices();window.speechSynthesis.onvoiceschanged=populateVoices;}

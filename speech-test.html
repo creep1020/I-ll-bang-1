@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173b35">
+<title>음성인식 단독 진단</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:22px;background:#f4f7f5;color:#172a25;font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+main{max-width:620px;margin:0 auto;background:white;border-radius:20px;padding:22px;box-shadow:0 8px 28px #173b3514}
+h1{font-size:23px;margin:0 0 8px}.desc{color:#52635d;line-height:1.6;font-size:14px}
+button{width:100%;border:0;border-radius:13px;padding:16px;margin:8px 0;font-size:17px;font-weight:700;background:#173b35;color:white}
+button:disabled{opacity:.45}.stop{background:#dce7e2;color:#173b35}
+.panel{margin-top:14px;padding:14px;border-radius:12px;background:#f1f5f2;min-height:60px;line-height:1.55;overflow-wrap:anywhere}
+#status{font-weight:700}#result{font-size:18px;min-height:90px;white-space:pre-wrap}.log{font-size:12px;color:#53635d;white-space:pre-wrap;max-height:230px;overflow:auto}
+</style>
+</head>
+<body><main>
+<h1>음성인식 단독 진단</h1>
+<p class="desc">이 페이지는 녹음 기능을 사용하지 않고 휴대폰 크롬의 음성인식만 확인합니다. 인터넷 연결을 켜고 아래 시작 버튼을 누른 뒤 영어 문장을 말해 주세요.</p>
+<button id="start">영어 음성인식 시작</button>
+<button id="stop" class="stop" disabled>중지</button>
+<div class="panel"><div>상태</div><div id="status">대기 중</div></div>
+<div class="panel"><div>인식 결과</div><div id="result">아직 인식된 내용이 없습니다.</div></div>
+<div class="panel"><div>진단 로그</div><div id="log" class="log">페이지 준비 완료</div></div>
+</main>
+<script>
+(()=>{
+ const $=id=>document.getElementById(id), log=(s)=>{$('log').textContent+=`\n${new Date().toLocaleTimeString()} ${s}`};
+ const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR){$('status').textContent='이 브라우저에서 SpeechRecognition을 지원하지 않습니다.';$('start').disabled=true;log('SpeechRecognition API 없음');return;}
+ $('status').textContent='SpeechRecognition API 감지됨';log('API 감지됨');
+ let rec=null;
+ $('start').onclick=()=>{
+   if(rec){try{rec.abort()}catch(e){}}
+   $('result').textContent='듣는 중…';$('status').textContent='시작 요청 중';
+   rec=new SR();rec.lang='en-US';rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=1;
+   rec.onstart=()=>{$('status').textContent='음성인식 시작됨 — 영어로 말해 보세요';$('start').disabled=true;$('stop').disabled=false;log('onstart 발생');};
+   rec.onaudiostart=()=>log('onaudiostart 발생');
+   rec.onspeechstart=()=>log('onspeechstart 발생');
+   rec.onspeechend=()=>log('onspeechend 발생');
+   rec.onresult=e=>{let out='';for(let i=0;i<e.results.length;i++){out+=e.results[i][0].transcript+(e.results[i].isFinal?'\n':'');} $('result').textContent=out||'(결과 텍스트 없음)';log('onresult 발생');};
+   rec.onerror=e=>{$('status').textContent='오류: '+e.error+(e.message?' / '+e.message:'');log('onerror: '+e.error);$('start').disabled=false;$('stop').disabled=true;};
+   rec.onend=()=>{$('status').textContent='음성인식 종료됨';$('start').disabled=false;$('stop').disabled=true;log('onend 발생');};
+   try{rec.start();log('start() 호출 완료');}catch(e){$('status').textContent='시작 실패: '+e.name+' / '+e.message;log('start 예외: '+e.name+' '+e.message);$('start').disabled=false;$('stop').disabled=true;}
+ };
+ $('stop').onclick=()=>{if(rec){try{rec.stop();log('stop() 호출')}catch(e){log('stop 예외: '+e.message)}}};
+})();
+</script></body></html>

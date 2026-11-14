@@ -362,22 +362,27 @@ async function startRecording(no){
    activeTranscript=latestTranscript;
    updateRecordResult(no,`🔴 문장을 영어로 말해 주세요.<br><b>인식 중:</b> ${escapeHtml(latestTranscript)}`);
   };
+  activeRecognitionError='';
   recognition.onerror=e=>{
    activeRecognitionError=e.error||'unknown';
-   updateRecordResult(no,`음성인식 오류(${escapeHtml(activeRecognitionError)})가 발생했어요. 마이크 권한과 인터넷 연결을 확인해 주세요.`);
+   updateRecordResult(no,`음성인식 오류: <b>${escapeHtml(activeRecognitionError)}</b><br>음성인식이 실패하면 통과 처리되지 않아요.`);
   };
   recognition.onend=()=>{
    recognitionEnded=true;
    if(latestTranscript)activeTranscript=latestTranscript;
    finishSpeakingAttempt();
   };
-  activeRecognitionError='';
+  // 음성인식이 실제 시작(onstart)된 것을 확인한 뒤 녹음기를 연다.
   await new Promise((resolve,reject)=>{
-   recognition.onstart=()=>resolve();
-   const priorError=recognition.onerror;
-   recognition.onerror=e=>{if(!recognitionEnded){activeRecognitionError=e.error||'unknown';if(e.error==='not-allowed'||e.error==='service-not-allowed')reject(new Error('마이크 권한이 거부됐어요.'));}};
-   try{recognition.start();}catch(e){reject(e);}
-   setTimeout(()=>{if(!activeRecognition.started && !recognitionEnded)resolve();},900);
+   let settled=false;
+   const timer=setTimeout(()=>{if(!settled){settled=true;reject(new Error('음성인식 서비스가 시작되지 않았어요. 크롬의 음성인식 서비스와 인터넷 연결을 확인해 주세요.'));}},5000);
+   recognition.onstart=()=>{if(!settled){settled=true;clearTimeout(timer);resolve();}};
+   recognition.onerror=e=>{
+    activeRecognitionError=e.error||'unknown';
+    updateRecordResult(no,`음성인식 오류: <b>${escapeHtml(activeRecognitionError)}</b>`);
+    if(['not-allowed','service-not-allowed','audio-capture'].includes(e.error)&&!settled){settled=true;clearTimeout(timer);reject(new Error('음성인식 마이크 또는 오디오 오류: '+e.error));}
+   };
+   try{recognition.start();}catch(e){clearTimeout(timer);settled=true;reject(e);}
   });
   // 음성인식이 시작된 뒤 녹음 스트림을 연다.
   activeStream=await navigator.mediaDevices.getUserMedia({audio:true});

@@ -657,6 +657,18 @@ panel.innerHTML = `
       <button id="deleteProfile">프로필 삭제</button>
     </div>
     <div class="small" id="profileMessage" style="margin-top:8px">프로필별로 학습 기록이 따로 저장됩니다. 최대 5개까지 만들 수 있어요.</div>
+    <div id="sharedProfilePanel" style="margin-top:14px;padding:12px;border:1px solid #b8c9e8;border-radius:12px;background:#f7f9ff">
+      <strong style="font-size:14px">🔗 14개 앱 공통 프로필 연결</strong>
+      <div class="small" style="margin:6px 0">현재 1권 순차학습 프로필을 가족 공통 프로필에 연결합니다. 아이 이름이 같아도 자동 연결하지 않으며, 부모님이 직접 확인하고 연결해야 합니다.</div>
+      <div class="small" id="sharedProfileCurrent" style="margin:7px 0" aria-live="polite">공통 프로필을 확인하고 있어요.</div>
+      <select id="sharedProfileSelect" aria-label="공통 프로필 선택" style="width:100%;margin:5px 0 8px"><option value="">공통 프로필 선택</option></select>
+      <div class="controls">
+        <button id="createSharedProfile" type="button">새 공통 프로필 만들기</button>
+        <button id="linkSharedProfile" type="button" class="primary">현재 프로필 연결</button>
+        <button id="unlinkSharedProfile" type="button">연결 해제</button>
+      </div>
+      <div class="small" id="sharedProfileStatus" style="margin-top:7px" aria-live="polite">아직 별과 아이템은 공유하지 않습니다. 먼저 프로필 연결만 설정합니다.</div>
+    </div>
     <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
       <button id="parentSettingsOpen" type="button">🔔 부모 알림 설정</button>
       <div id="parentSettingsPanel" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px">
@@ -742,10 +754,126 @@ const status = value => { $login('loginStatus').textContent = value; };
 const PROFILE_LIMIT = 5;
 const ACTIVE_PROFILE_KEY = 'ilbbangActiveProfileId';
 const DEFAULT_PROFILE = { id: 'profile_default', name: '나' };
-let profiles = [DEFAULT_PROFILE];
-let activeProfileId = DEFAULT_PROFILE.id;
-let profileData = {};
-let switchingProfile = false;
+let profiles = [DEFAULT_PROFILE]; let activeProfileId = DEFAULT_PROFILE.id; let profileData = {}; let switchingProfile = false;
+// 14개 앱 공통 프로필 연결 규격: 이 앱은 1권 순차학습 앱입니다.
+const SHARED_PROFILE_APP_ID = 'book1-sequential';
+let sharedProfiles = {};
+let sharedAppLinks = {};
+let stopSharedProfileListener = null;
+function sharedProfileLinkKey(profileId = activeProfileId) { return `${SHARED_PROFILE_APP_ID}:${profileId}`; }
+function renderSharedProfileControls() {
+  const select = $login('sharedProfileSelect');
+  const current = $login('sharedProfileCurrent');
+  const statusEl = $login('sharedProfileStatus');
+  if (!select || !current || !statusEl) return;
+  const linkedId = sharedAppLinks[sharedProfileLinkKey()];
+  const entries = Object.values(sharedProfiles || {}).filter(p => p && p.id && p.name);
+  select.innerHTML = '<option value="">공통 프로필 선택</option>' + entries.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+  if (linkedId && sharedProfiles[linkedId]) {
+    select.value = linkedId;
+    current.textContent = `현재 1권 프로필 '${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'}' → 공통 프로필 '${sharedProfiles[linkedId].name}' 연결됨`;
+    statusEl.textContent = '프로필 연결 완료. 아직 별·뭉이 아이템 공유 기능은 적용되지 않았습니다.';
+  } else if (linkedId) {
+    current.textContent = '현재 연결된 공통 프로필을 찾을 수 없습니다. 연결 상태를 확인해 주세요.';
+    statusEl.textContent = '기존 연결 정보가 남아 있어요. 새 프로필로 덮어쓰기 전에 확인해 주세요.';
+  } else {
+    current.textContent = `현재 1권 프로필 '${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'}'은 공통 프로필에 연결되지 않았습니다.`;
+    statusEl.textContent = entries.length ? '목록에서 기존 공통 프로필을 선택하거나 새로 만들어 연결하세요.' : '아직 공통 프로필이 없습니다. 첫 공통 프로필을 만들어 주세요.';
+  }
+  $login('unlinkSharedProfile').disabled = !linkedId;
+  $login('linkSharedProfile').disabled = !entries.length;
+}
+function watchSharedProfiles() {
+  if (!currentUid || !syncReady) return;
+  if (stopSharedProfileListener) stopSharedProfileListener();
+  const ref = doc(db, 'ilbbangShared', currentUid);
+  stopSharedProfileListener = onSnapshot(ref, snap => {
+    const data = snap.exists() ? snap.data() : {};
+    sharedProfiles = data.profiles && typeof data.profiles === 'object' ? data.profiles : {};
+    sharedAppLinks = data.appLinks && typeof data.appLinks === 'object' ? data.appLinks : {};
+    renderSharedProfileControls();
+  }, error => {
+    $login('sharedProfileStatus').textContent = '공통 프로필을 불러오지 못했어요: ' + (error.code || error.message);
+  });
+}
+async function createAndLinkSharedProfile() {
+  if (!syncReady || !currentUid) return;
+  const localName = profiles.find(p=>p.id===activeProfileId)?.name || '현재 프로필';
+  const name = prompt(`'${localName}' 프로필에 연결할 공통 프로필 이름을 입력해 주세요. 아이를 구분할 수 있는 이름을 사용하세요.`, localName);
+  if (!name || !name.trim()) return;
+  if (!confirm(`현재 1권 프로필 '${localName}'을 새 공통 프로필 '${name.trim()}'에 연결할까요? 다른 앱에서도 같은 아이를 선택해 연결해야 데이터가 공유됩니다.`)) return;
+  const id = 'sp_' + (crypto.randomUUID ? crypto.randomUUID().replaceAll('-', '') : Date.now().toString(36) + Math.random().toString(36).slice(2,10));
+  const ref = doc(db, 'ilbbangShared', currentUid);
+  try {
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      const data = snap.exists() ? snap.data() : {};
+      const nextProfiles = data.profiles && typeof data.profiles === 'object' ? {...data.profiles} : {};
+      const nextLinks = data.appLinks && typeof data.appLinks === 'object' ? {...data.appLinks} : {};
+      if (nextLinks[sharedProfileLinkKey()]) throw new Error('현재 프로필은 이미 공통 프로필에 연결되어 있어요. 먼저 연결 상태를 확인해 주세요.');
+      nextProfiles[id] = {id, name:name.trim().slice(0,30), createdAt:Date.now()};
+      nextLinks[sharedProfileLinkKey()] = id;
+      transaction.set(ref, {profiles:nextProfiles, appLinks:nextLinks, updatedAt:serverTimestamp()}, {merge:true});
+    });
+    $login('sharedProfileStatus').textContent = '새 공통 프로필을 만들고 현재 1권 프로필에 연결했어요.';
+  } catch (error) {
+    $login('sharedProfileStatus').textContent = '공통 프로필 생성 실패: ' + (error.message || error);
+  }
+}
+async function linkExistingSharedProfile() {
+  if (!syncReady || !currentUid) return;
+  const selectedId = $login('sharedProfileSelect').value;
+  const selected = sharedProfiles[selectedId];
+  if (!selectedId || !selected) { $login('sharedProfileStatus').textContent = '연결할 공통 프로필을 먼저 선택해 주세요.'; return; }
+  const localName = profiles.find(p=>p.id===activeProfileId)?.name || '현재 프로필';
+  const existing = sharedAppLinks[sharedProfileLinkKey()];
+  if (existing === selectedId) { $login('sharedProfileStatus').textContent = '이미 이 공통 프로필에 연결되어 있어요.'; return; }
+  if (existing) { $login('sharedProfileStatus').textContent = '이미 다른 공통 프로필에 연결되어 있습니다. 먼저 연결을 해제해 주세요.'; return; }
+  const usedByAnotherLocalProfile = Object.entries(sharedAppLinks).some(([key, value]) => key.startsWith(SHARED_PROFILE_APP_ID + ':') && key !== sharedProfileLinkKey() && value === selectedId);
+  if (usedByAnotherLocalProfile) { $login('sharedProfileStatus').textContent = '이 공통 프로필은 이미 1권의 다른 학습 프로필에 연결되어 있어요. 중복 연결은 허용하지 않습니다.'; return; }
+  if (!confirm(`현재 1권 프로필 '${localName}'을 공통 프로필 '${selected.name}'에 연결할까요? 잘못 연결하면 다른 아이의 데이터가 섞일 수 있어요.`)) return;
+  const ref = doc(db, 'ilbbangShared', currentUid);
+  try {
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists()) throw new Error('공통 프로필 목록이 없습니다. 새로고침 후 다시 시도해 주세요.');
+      const data = snap.data();
+      const nextProfiles = data.profiles && typeof data.profiles === 'object' ? data.profiles : {};
+      if (!nextProfiles[selectedId]) throw new Error('선택한 공통 프로필이 다른 기기에서 변경되었어요. 목록을 새로 확인해 주세요.');
+      const nextLinks = data.appLinks && typeof data.appLinks === 'object' ? {...data.appLinks} : {};
+      if (nextLinks[sharedProfileLinkKey()]) throw new Error('현재 프로필은 이미 다른 공통 프로필에 연결되어 있어요.');
+      if (Object.entries(nextLinks).some(([key, value]) => key.startsWith(SHARED_PROFILE_APP_ID + ':') && key !== sharedProfileLinkKey() && value === selectedId)) throw new Error('이 공통 프로필은 1권의 다른 학습 프로필에 이미 연결되어 있어요.');
+      nextLinks[sharedProfileLinkKey()] = selectedId;
+      transaction.set(ref, {appLinks:nextLinks, updatedAt:serverTimestamp()}, {merge:true});
+    });
+    $login('sharedProfileStatus').textContent = '공통 프로필 연결을 저장했어요.';
+  } catch (error) {
+    $login('sharedProfileStatus').textContent = '연결 실패: ' + (error.message || error);
+  }
+}
+async function unlinkSharedProfile() {
+  if (!syncReady || !currentUid) return;
+  const linkedId = sharedAppLinks[sharedProfileLinkKey()];
+  if (!linkedId) return;
+  const linkedName = sharedProfiles[linkedId]?.name || '공통 프로필';
+  if (!confirm(`현재 1권 프로필과 '${linkedName}'의 연결을 해제할까요? 공통 프로필이나 기존 학습 기록은 삭제되지 않습니다.`)) return;
+  const ref = doc(db, 'ilbbangShared', currentUid);
+  try {
+    await runTransaction(db, async transaction => {
+      const snap = await transaction.get(ref);
+      const data = snap.exists() ? snap.data() : {};
+      const nextLinks = data.appLinks && typeof data.appLinks === 'object' ? {...data.appLinks} : {};
+      delete nextLinks[sharedProfileLinkKey()];
+      transaction.set(ref, {appLinks:nextLinks, updatedAt:serverTimestamp()}, {merge:true});
+    });
+    $login('sharedProfileStatus').textContent = '연결을 해제했어요. 기존 학습 기록과 공통 프로필은 그대로 보존됩니다.';
+  } catch (error) {
+    $login('sharedProfileStatus').textContent = '연결 해제 실패: ' + (error.message || error);
+  }
+}
+$login('createSharedProfile').onclick = createAndLinkSharedProfile;
+$login('linkSharedProfile').onclick = linkExistingSharedProfile;
+$login('unlinkSharedProfile').onclick = unlinkSharedProfile;
 function readLocalSnapshot() {
   const data = {};
   for (const key of CLOUD_KEYS) {
@@ -954,6 +1082,7 @@ function updateProfileControls() {
   select.value = activeProfileId;
   $login('deleteProfile').disabled = profiles.length <= 1;
   $login('addProfile').disabled = profiles.length >= PROFILE_LIMIT;
+  renderSharedProfileControls();
 }
 function profileMessage(value) { $login('profileMessage').textContent = value; }
 async function persistProfileState() {
@@ -1052,6 +1181,7 @@ async function loadAndMergeCloud(user) {
       status('☁️ 동기화 완료 · 기존 기록을 프로필에 연결했어요.');
     }
     updateProfileControls();
+    watchSharedProfiles();
     await loadParentNotifySettings();
     if (stopCloudListener) stopCloudListener();
     stopCloudListener = onSnapshot(ref, cloudSnap => {
@@ -1196,6 +1326,8 @@ onAuthStateChanged(auth, async user => {
     if (stopNotifySettingsListener) { stopNotifySettingsListener(); stopNotifySettingsListener = null; }
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
+    if (stopSharedProfileListener) { stopSharedProfileListener(); stopSharedProfileListener = null; }
+    sharedProfiles = {}; sharedAppLinks = {};
     status('로그인 전입니다. 두 휴대폰에서 같은 공용 계정으로 로그인해 주세요.');
     return;
   }
@@ -1203,6 +1335,8 @@ onAuthStateChanged(auth, async user => {
     syncReady = false; currentUid = null;
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
+    if (stopSharedProfileListener) { stopSharedProfileListener(); stopSharedProfileListener = null; }
+    sharedProfiles = {}; sharedAppLinks = {};
     status('익명 계정이 로그인되어 있어요. 로그아웃한 뒤 공용 이메일 계정으로 로그인해 주세요.');
     return;
   }

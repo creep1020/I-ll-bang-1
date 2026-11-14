@@ -295,6 +295,8 @@ function speakEnglish(text){
 const SPEAKING_PASS_KEY='ilbbangSeq600SpeakingPass';
 let activeRecorder=null, activeStream=null, activeNo=null, activeChunks=[], activeAudioUrl=null;
 let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null, activeRecognitionError='';
+// 녹음 결과는 render()가 문장 목록을 다시 그려도 유지한다.
+const recordingResults={};
 function speakingPasses(){return readMap(SPEAKING_PASS_KEY)}
 function speakingKey(no){return key(iso(today),currentDay())+'|'+no}
 function normalizeWords(value){return String(value||'').toLowerCase().replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean)}
@@ -311,8 +313,10 @@ function speakingMatch(expected,spoken){
  return Math.round(prev[b.length]/a.length*100);
 }
 function updateRecordResult(no,html){
+ recordingResults[no]=recordingResults[no]||{};
+ recordingResults[no].html=html;
  const el=document.getElementById('record-'+no);
- if(el){el.className='record-result show';el.innerHTML=html;}
+ if(el){el.className='record-result show';el.innerHTML=html+(recordingResults[no].audioUrl?`<audio controls class=\"record-audio\" src=\"${recordingResults[no].audioUrl}\"></audio>`:'');}
 }
 function finishSpeakingAttempt(){
  if(!recorderEnded||!recognitionEnded)return;
@@ -329,10 +333,12 @@ function finishSpeakingAttempt(){
   ?`<b>✅ 통과 · 일치율 ${percent}%</b>${transcript}<br>이 문장은 말하기 학습을 통과했어요.`
   :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}%</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
  updateRecordResult(no,result);
- if(activeAudioUrl)URL.revokeObjectURL(activeAudioUrl);
  const mime=activeRecorder?.mimeType||'audio/webm';
  const blob=new Blob(activeChunks,{type:mime});
- if(blob.size){activeAudioUrl=URL.createObjectURL(blob);const el=document.getElementById('record-'+no);if(el){const audio=document.createElement('audio');audio.controls=true;audio.className='record-audio';audio.src=activeAudioUrl;el.appendChild(audio);}}
+ recordingResults[no]=recordingResults[no]||{};
+ if(recordingResults[no].audioUrl)URL.revokeObjectURL(recordingResults[no].audioUrl);
+ if(blob.size){activeAudioUrl=URL.createObjectURL(blob);recordingResults[no].audioUrl=activeAudioUrl;}
+ recordingResults[no].html=result;
  if(activeStream){activeStream.getTracks().forEach(t=>t.stop());activeStream=null;}
  activeRecorder=null;activeRecognition=null;activeNo=null;activeSentence=null;activeRecognitionError='';
  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
@@ -429,7 +435,10 @@ function render(){
  $('sentenceList').innerHTML=visible.map(x=>{
   let text=viewMode==='ko'?escapeHtml(x.ko):viewMode==='en'?escapeHtml(x.en):`<div>${escapeHtml(x.ko)}</div><div class="english" style="font-size:.86em;color:#5f695e;margin-top:3px">${escapeHtml(x.en)}</div>`;
   const pass=speaking[speakingKey(x.no)];
-  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">${pass?.passed?'✅ 말하기 통과':'🎙 녹음'}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result" id="record-${x.no}">${pass?.passed?`<b>✅ 통과 · 일치율 ${pass.percent}%</b><br>인식 결과: “${escapeHtml(pass.transcript||'')}”`:''}</div></span></li>`;
+  const rec=recordingResults[x.no];
+  const initial=pass?.passed?`<b>✅ 통과 · 일치율 ${pass.percent}%</b><br>인식 결과: “${escapeHtml(pass.transcript||'')}”`:'';
+  const recordLabel=activeNo===x.no?'⏹ 녹음 종료':pass?.passed?'✅ 말하기 통과':'🎙 녹음';
+  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">${recordLabel}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result ${rec||initial?'show':''}" id="record-${x.no}">${rec?.html||initial}${rec?.audioUrl?`<audio controls class="record-audio" src="${rec.audioUrl}"></audio>`:''}</div></span></li>`;
  }).join('');
  $('koreanBtn').classList.toggle('active',viewMode==='ko');$('englishBtn').classList.toggle('active',viewMode==='en');$('bothBtn').classList.toggle('active',viewMode==='both');
  $('reviewGatePanel').style.display=reviewLocked?'block':'none';

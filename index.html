@@ -367,7 +367,7 @@ function nativeVoiceRecognitionTimeout(pending){
    activeNo=null;activeSentence=null;activeRecorder=null;activeRecognition=null;activeStream=null;
    activeChunks=[];activeTranscript='';activeRecognitionError='';
    recognitionEnded=true;recorderEnded=true;finalizingRecording=false;
-   updateRecordResult(pending.no,'음성 확인이 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요.');
+   updateRecordResult(pending.no,'음성 확인 시간이 너무 길어졌어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.');
    const btn=document.querySelector(`[data-record="${pending.no}"]`);
    if(btn)btn.textContent='🎙 다시 녹음';
    render();
@@ -375,7 +375,7 @@ function nativeVoiceRecognitionTimeout(pending){
  }else if(pending.mode==='review'){
   const due=pending.reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();
   const item=due.find(x=>x.no===pending.no);
-  if(item)handleReviewFailure(item,pending.reviewMode,'음성 확인이 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요.');
+  if(item)handleReviewFailure(item,pending.reviewMode,'음성 확인 시간이 너무 길어졌어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.');
  }
 }
 window.onIlbbangNativeVoiceStatus=function(requestId,status){
@@ -390,13 +390,27 @@ window.onIlbbangNativeVoiceStatus=function(requestId,status){
   }
   return;
  }
- // 모델 준비(최대 60초)와 음성인식(최대 30초)이 끝날 때까지 기다립니다.
- if(!pending.timeoutId)pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),100000);
- if(pending.mode==='sentence'){
-  updateRecordResult(pending.no,'⏳ 음성 확인 중…');
-  const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
- }else if(pending.mode==='review'){
-  $('reviewFeedback').textContent='⏳ 음성 확인 중…';
+ if(status==='preparing'){
+  // 모델 준비 단계(최대 60초)를 포함해 전체 처리를 최대 100초 기다립니다.
+  if(!pending.timeoutId)pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),100000);
+  if(pending.mode==='sentence'){
+   updateRecordResult(pending.no,'⚙️ 음성인식 준비 중…');
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⚙️ 준비 중…';
+  }else if(pending.mode==='review'){
+   $('reviewFeedback').textContent='⚙️ 음성인식 준비 중…';
+  }
+  return;
+ }
+ if(status==='recognizing'){
+  // Kotlin의 30초 인식 제한보다 여유 있게 40초 기다립니다.
+  if(pending.timeoutId)clearTimeout(pending.timeoutId);
+  pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),40000);
+  if(pending.mode==='sentence'){
+   updateRecordResult(pending.no,'⏳ 음성 확인 중…');
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+  }else if(pending.mode==='review'){
+   $('reviewFeedback').textContent='⏳ 음성 확인 중…';
+  }
  }
 };
 window.onIlbbangNativeVoiceResult=async function(result){

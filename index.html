@@ -351,7 +351,83 @@ async function finishSpeakingAttempt(){
  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
  render();
 }
+
+// Android APK 전용 네이티브 음성인식 연결. 일반 크롬에서는 기존 Web Speech API를 그대로 사용합니다.
+let nativeVoicePending=null;
+function nativeVoiceId(){return 'voice_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);}
+function nativeVoiceClear(){nativeVoicePending=null;}
+window.onIlbbangNativeVoiceStatus=function(requestId,status){
+ const pending=nativeVoicePending;
+ if(!pending||pending.requestId!==requestId)return;
+ if(pending.mode==='sentence'){
+  const message=status==='recording'?'🔴 5초 동안 영어 문장을 말해 주세요…':'녹음 완료. 영어 음성을 확인하고 있어요…';
+  updateRecordResult(pending.no,message);
+ }else if(pending.mode==='review'){
+  $('reviewFeedback').textContent=status==='recording'?'영어 문장을 말해 주세요…':'녹음 완료. 문장을 확인하고 있어요…';
+ }
+};
+window.onIlbbangNativeVoiceResult=async function(result){
+ const pending=nativeVoicePending;
+ if(!pending||!result||pending.requestId!==result.requestId)return;
+ nativeVoiceClear();
+ const transcript=String(result.transcript||'').trim();
+ const error=String(result.error||'').trim();
+ if(pending.mode==='sentence'){
+  if(activeNo!==pending.no)return;
+  activeTranscript=transcript;
+  activeRecognitionError=error;
+  activeRecorder=null;activeRecognition=null;activeStream=null;
+  recognitionEnded=true;recorderEnded=true;
+  activeChunks=[];
+  if(result.audioBase64){
+   try{
+    const binary=atob(result.audioBase64),bytes=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+    activeChunks=[new Blob([bytes],{type:result.mimeType||'audio/mp4'})];
+   }catch(decodeError){console.error('네이티브 녹음 데이터 변환 실패',decodeError);activeRecognitionError=activeRecognitionError||'녹음 데이터를 읽지 못했습니다.';}
+  }
+  if(!activeChunks.length&&!transcript){
+   const no=pending.no;
+   activeNo=null;activeSentence=null;activeRecognitionError='';
+   updateRecordResult(no,'녹음/음성인식 실패: '+escapeHtml(error||'녹음 파일을 전달받지 못했습니다.'));
+   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
+   render();
+   return;
+  }
+  await finishSpeakingAttempt();
+  return;
+ }
+ if(pending.mode==='review'){
+  const due=pending.reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();
+  const item=due.find(x=>x.no===pending.no);
+  if(!item)return;
+  if(error||!transcript){
+   handleReviewFailure(item,pending.reviewMode,error||'음성이 잘 들리지 않았어요.');
+   return;
+  }
+  const expected=normalizeSpokenSentence(item.en),actual=normalizeSpokenSentence(transcript);
+  if(actual&&actual===expected)completeReviewItem(item,pending.reviewMode,false);
+  else handleReviewFailure(item,pending.reviewMode,`아직 문장이 달라요. 인식된 문장: “${transcript}”`);
+ }
+};
+
 async function startRecording(no){
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.startRecording==='function'){
+  if(activeNo!==null){alert('먼저 진행 중인 녹음을 마쳐 주세요.');return;}
+  const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)return;
+  activeNo=no;activeSentence=item;activeChunks=[];activeTranscript='';activeRecognitionError='';
+  recognitionEnded=false;recorderEnded=false;finalizingRecording=false;
+  const requestId=nativeVoiceId();nativeVoicePending={requestId,mode:'sentence',no};
+  updateRecordResult(no,'마이크를 준비하고 있어요…');
+  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏹ 녹음 중…';
+  try{window.IlbbangAndroid.startRecording(requestId,'sentence');}
+  catch(err){
+   nativeVoiceClear();activeNo=null;activeSentence=null;recognitionEnded=true;recorderEnded=true;
+   updateRecordResult(no,'녹음을 시작하지 못했어요: '+escapeHtml(err.message||String(err)));
+   if(btn)btn.textContent='🎙 다시 녹음';render();
+  }
+  return;
+ }
  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!Recognition){alert('이 브라우저는 영어 음성인식을 지원하지 않아요. 안드로이드 크롬에서 다시 시도해 주세요.');return;}
  if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){alert('이 브라우저는 녹음을 지원하지 않아요. HTTPS 주소의 크롬에서 열어 주세요.');return;}
@@ -525,6 +601,22 @@ function completeReviewItem(item,mode,usedAnswer=false){
  setTimeout(()=>{if(remaining.length){reviewCurrentNo=remaining[0].no;render();}else{reviewCurrentNo=null;render();}},900);
 }
 function startReviewSpeaking(){
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.startRecording==='function'){
+  if(reviewListening||reviewFallbackNo!==null||nativeVoicePending)return;
+  const due=reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();
+  if(!due.length){render();return;}
+  const item=due.find(x=>x.no===reviewCurrentNo)||due[0],mode=reviewMode;
+  reviewListening=true;renderReviewGate(due,mode);
+  $('reviewFeedback').textContent='마이크를 준비하고 있어요…';
+  const requestId=nativeVoiceId();
+  nativeVoicePending={requestId,mode:'review',no:item.no,reviewMode:mode};
+  try{window.IlbbangAndroid.startRecording(requestId,'review');}
+  catch(err){
+   nativeVoiceClear();
+   handleReviewFailure(item,mode,'마이크를 시작하지 못했어요: '+(err.message||String(err)));
+  }
+  return;
+ }
  const Recognition=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!Recognition){const due=reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();const item=due.find(x=>x.no===reviewCurrentNo)||due[0];if(item)handleReviewFailure(item,reviewMode,'이 브라우저에서는 음성 인식을 지원하지 않아요.');return;}
  if(reviewListening||reviewFallbackNo!==null)return;

@@ -367,7 +367,7 @@ function nativeVoiceRecognitionTimeout(pending){
    activeNo=null;activeSentence=null;activeRecorder=null;activeRecognition=null;activeStream=null;
    activeChunks=[];activeTranscript='';activeRecognitionError='';
    recognitionEnded=true;recorderEnded=true;finalizingRecording=false;
-   updateRecordResult(pending.no,'음성 확인이 5초 안에 끝나지 않았어요. 조금 천천히 다시 말해 주세요.');
+   updateRecordResult(pending.no,'음성 확인이 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요.');
    const btn=document.querySelector(`[data-record="${pending.no}"]`);
    if(btn)btn.textContent='🎙 다시 녹음';
    render();
@@ -375,7 +375,7 @@ function nativeVoiceRecognitionTimeout(pending){
  }else if(pending.mode==='review'){
   const due=pending.reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();
   const item=due.find(x=>x.no===pending.no);
-  if(item)handleReviewFailure(item,pending.reviewMode,'음성 확인이 5초 안에 끝나지 않았어요. 조금 천천히 다시 말해 주세요.');
+  if(item)handleReviewFailure(item,pending.reviewMode,'음성 확인이 오래 걸리고 있어요. 잠시 후 다시 시도해 주세요.');
  }
 }
 window.onIlbbangNativeVoiceStatus=function(requestId,status){
@@ -390,8 +390,8 @@ window.onIlbbangNativeVoiceStatus=function(requestId,status){
   }
   return;
  }
- // 녹음이 끝난 뒤 음성 확인 단계는 최대 5초만 기다립니다.
- if(!pending.timeoutId)pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),5000);
+ // 모델 준비(최대 60초)와 음성인식(최대 30초)이 끝날 때까지 기다립니다.
+ if(!pending.timeoutId)pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),100000);
  if(pending.mode==='sentence'){
   updateRecordResult(pending.no,'⏳ 음성 확인 중…');
   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';

@@ -361,6 +361,8 @@ function nativeVoiceClear(){
 }
 function nativeVoiceRecognitionTimeout(pending){
  if(!nativeVoicePending||nativeVoicePending.requestId!==pending.requestId)return;
+ // 웹 화면의 대기만 끝내지 말고 Android 네이티브 처리도 함께 취소해 잠금을 풉니다.
+ try{if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.cancelRecording==='function')window.IlbbangAndroid.cancelRecording(pending.requestId);}catch(cancelError){console.warn('네이티브 음성 취소 실패',cancelError);}
  nativeVoiceClear();
  if(pending.mode==='sentence'){
   if(activeNo===pending.no){
@@ -381,6 +383,21 @@ function nativeVoiceRecognitionTimeout(pending){
 window.onIlbbangNativeVoiceStatus=function(requestId,status){
  const pending=nativeVoicePending;
  if(!pending||pending.requestId!==requestId)return;
+ if(status==='checking'){
+  if(pending.mode==='sentence')updateRecordResult(pending.no,'🔎 음성인식 모델 상태 확인 중…');
+  else if(pending.mode==='review')$('reviewFeedback').textContent='🔎 음성인식 모델 상태 확인 중…';
+  return;
+ }
+ if(status==='downloading'){
+  if(pending.mode==='sentence')updateRecordResult(pending.no,'📥 음성인식 모델 다운로드 중…');
+  else if(pending.mode==='review')$('reviewFeedback').textContent='📥 음성인식 모델 다운로드 중…';
+  return;
+ }
+ if(status==='model-ready'){
+  if(pending.mode==='sentence')updateRecordResult(pending.no,'✅ 모델 준비 완료, 인식 요청 중…');
+  else if(pending.mode==='review')$('reviewFeedback').textContent='✅ 모델 준비 완료, 인식 요청 중…';
+  return;
+ }
  if(status==='recording'){
   if(pending.mode==='sentence'){
    updateRecordResult(pending.no,'🔴 5초 동안 영어 문장을 말해 주세요…');
@@ -530,6 +547,13 @@ async function startRecording(no){
 }
 function finishRecording(){
  if(activeNo===null)return;
+ // Android는 5초 녹음 후 네이티브가 자동으로 인식합니다. 인식 중 학습종료를 눌러도
+ // 빈 결과로 조기 확정하지 않고 네이티브 결과 또는 제한시간 종료를 기다립니다.
+ if(nativeVoicePending&&nativeVoicePending.mode==='sentence'){
+  updateRecordResult(activeNo,'⏳ 녹음은 끝났어요. 음성인식 결과를 기다리고 있어요…');
+  const btn=document.querySelector(`[data-record="${activeNo}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+  return;
+ }
  // 음성인식을 먼저 정상 종료해 마지막 인식 결과가 전달될 시간을 준다.
  if(activeRecognition){try{activeRecognition.stop()}catch(e){recognitionEnded=true;}}
  else recognitionEnded=true;

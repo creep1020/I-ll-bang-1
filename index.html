@@ -355,15 +355,48 @@ async function finishSpeakingAttempt(){
 // Android APK 전용 네이티브 음성인식 연결. 일반 크롬에서는 기존 Web Speech API를 그대로 사용합니다.
 let nativeVoicePending=null;
 function nativeVoiceId(){return 'voice_'+Date.now()+'_'+Math.random().toString(36).slice(2,9);}
-function nativeVoiceClear(){nativeVoicePending=null;}
+function nativeVoiceClear(){
+ if(nativeVoicePending&&nativeVoicePending.timeoutId)clearTimeout(nativeVoicePending.timeoutId);
+ nativeVoicePending=null;
+}
+function nativeVoiceRecognitionTimeout(pending){
+ if(!nativeVoicePending||nativeVoicePending.requestId!==pending.requestId)return;
+ nativeVoiceClear();
+ if(pending.mode==='sentence'){
+  if(activeNo===pending.no){
+   activeNo=null;activeSentence=null;activeRecorder=null;activeRecognition=null;activeStream=null;
+   activeChunks=[];activeTranscript='';activeRecognitionError='';
+   recognitionEnded=true;recorderEnded=true;finalizingRecording=false;
+   updateRecordResult(pending.no,'음성 확인이 5초 안에 끝나지 않았어요. 조금 천천히 다시 말해 주세요.');
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);
+   if(btn)btn.textContent='🎙 다시 녹음';
+   render();
+  }
+ }else if(pending.mode==='review'){
+  const due=pending.reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();
+  const item=due.find(x=>x.no===pending.no);
+  if(item)handleReviewFailure(item,pending.reviewMode,'음성 확인이 5초 안에 끝나지 않았어요. 조금 천천히 다시 말해 주세요.');
+ }
+}
 window.onIlbbangNativeVoiceStatus=function(requestId,status){
  const pending=nativeVoicePending;
  if(!pending||pending.requestId!==requestId)return;
+ if(status==='recording'){
+  if(pending.mode==='sentence'){
+   updateRecordResult(pending.no,'🔴 5초 동안 영어 문장을 말해 주세요…');
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏺ 녹음 중…';
+  }else if(pending.mode==='review'){
+   $('reviewFeedback').textContent='🔴 5초 동안 영어 문장을 말해 주세요…';
+  }
+  return;
+ }
+ // 녹음이 끝난 뒤 음성 확인 단계는 최대 5초만 기다립니다.
+ if(!pending.timeoutId)pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),5000);
  if(pending.mode==='sentence'){
-  const message=status==='recording'?'🔴 5초 동안 영어 문장을 말해 주세요…':'녹음 완료. 영어 음성을 확인하고 있어요…';
-  updateRecordResult(pending.no,message);
+  updateRecordResult(pending.no,'⏳ 음성 확인 중…');
+  const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
  }else if(pending.mode==='review'){
-  $('reviewFeedback').textContent=status==='recording'?'영어 문장을 말해 주세요…':'녹음 완료. 문장을 확인하고 있어요…';
+  $('reviewFeedback').textContent='⏳ 음성 확인 중…';
  }
 };
 window.onIlbbangNativeVoiceResult=async function(result){
@@ -419,7 +452,7 @@ async function startRecording(no){
   recognitionEnded=false;recorderEnded=false;finalizingRecording=false;
   const requestId=nativeVoiceId();nativeVoicePending={requestId,mode:'sentence',no};
   updateRecordResult(no,'마이크를 준비하고 있어요…');
-  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏹ 녹음 중…';
+  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏺ 녹음 준비 중…';
   try{window.IlbbangAndroid.startRecording(requestId,'sentence');}
   catch(err){
    nativeVoiceClear();activeNo=null;activeSentence=null;recognitionEnded=true;recorderEnded=true;

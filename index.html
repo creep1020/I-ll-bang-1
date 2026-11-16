@@ -282,12 +282,16 @@ function populateVoices(){
  availableVoices=window.speechSynthesis.getVoices().filter(isEnglishVoice);
 }
 function speakEnglish(text){
- if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요. 크롬에서 열어 주세요.');return;}
+ const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
+ // APK에서는 Android 내장 TextToSpeech를 사용하고, 일반 브라우저에서는 Web Speech API를 사용합니다.
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'){
+  try{window.IlbbangAndroid.speak(String(text||''),rate);return;}
+  catch(err){console.warn('Android TTS 연결 실패',err);}
+ }
+ if(!('speechSynthesis' in window)){alert('이 기기에서 음성 재생 기능을 사용할 수 없어요.');return;}
  populateVoices();window.speechSynthesis.cancel();
  const utterance=new SpeechSynthesisUtterance(text);
- utterance.lang='en-US';
- utterance.rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
- utterance.pitch=0.92;
+ utterance.lang='en-US';utterance.rate=rate;utterance.pitch=0.92;
  const voice=preferredVoice();if(voice)utterance.voice=voice;
  window.speechSynthesis.speak(utterance);
 }
@@ -361,8 +365,6 @@ function nativeVoiceClear(){
 }
 function nativeVoiceRecognitionTimeout(pending){
  if(!nativeVoicePending||nativeVoicePending.requestId!==pending.requestId)return;
- // 웹 화면의 대기만 끝내지 말고 Android 네이티브 처리도 함께 취소해 잠금을 풉니다.
- try{if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.cancelRecording==='function')window.IlbbangAndroid.cancelRecording(pending.requestId);}catch(cancelError){console.warn('네이티브 음성 취소 실패',cancelError);}
  nativeVoiceClear();
  if(pending.mode==='sentence'){
   if(activeNo===pending.no){
@@ -383,27 +385,21 @@ function nativeVoiceRecognitionTimeout(pending){
 window.onIlbbangNativeVoiceStatus=function(requestId,status){
  const pending=nativeVoicePending;
  if(!pending||pending.requestId!==requestId)return;
- if(status==='checking'){
-  if(pending.mode==='sentence')updateRecordResult(pending.no,'🔎 음성인식 모델 상태 확인 중…');
-  else if(pending.mode==='review')$('reviewFeedback').textContent='🔎 음성인식 모델 상태 확인 중…';
-  return;
- }
- if(status==='downloading'){
-  if(pending.mode==='sentence')updateRecordResult(pending.no,'📥 음성인식 모델 다운로드 중…');
-  else if(pending.mode==='review')$('reviewFeedback').textContent='📥 음성인식 모델 다운로드 중…';
-  return;
- }
- if(status==='model-ready'){
-  if(pending.mode==='sentence')updateRecordResult(pending.no,'✅ 모델 준비 완료, 인식 요청 중…');
-  else if(pending.mode==='review')$('reviewFeedback').textContent='✅ 모델 준비 완료, 인식 요청 중…';
-  return;
- }
  if(status==='recording'){
   if(pending.mode==='sentence'){
    updateRecordResult(pending.no,'🔴 5초 동안 영어 문장을 말해 주세요…');
    const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏺ 녹음 중…';
   }else if(pending.mode==='review'){
    $('reviewFeedback').textContent='🔴 5초 동안 영어 문장을 말해 주세요…';
+  }
+  return;
+ }
+ if(status==='processing'){
+  if(pending.mode==='sentence'){
+   updateRecordResult(pending.no,'⏳ 녹음은 끝났어요. 영어 음성을 확인하고 있습니다. 잠시만 기다려 주세요…');
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+  }else if(pending.mode==='review'){
+   $('reviewFeedback').textContent='⏳ 녹음은 끝났어요. 영어 음성을 확인하고 있습니다…';
   }
   return;
  }
@@ -547,23 +543,22 @@ async function startRecording(no){
 }
 function finishRecording(){
  if(activeNo===null)return;
- // Android APK에서는 버튼을 누르면 네이티브 녹음을 즉시 끝내고 인식을 시작합니다.
- if(nativeVoicePending&&nativeVoicePending.mode==='sentence'){
+ // APK의 녹음은 Android에서 관리합니다. JS 녹음기처럼 즉시 결과를 확정하지 않고
+ // 네이티브 녹음 종료를 요청한 뒤 ML Kit의 최종 인식 결과를 기다립니다.
+ if(nativeVoicePending&&nativeVoicePending.mode==='sentence'&&nativeVoicePending.no===activeNo){
   const pending=nativeVoicePending;
-  updateRecordResult(pending.no,'⏳ 녹음을 마치고 음성인식을 시작하고 있어요…');
-  const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
-  try{
-   if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.stopRecording==='function'){
-    window.IlbbangAndroid.stopRecording(pending.requestId);
-   }else{
-    updateRecordResult(pending.no,'Android 녹음 종료 기능이 없는 앱 버전이에요. 앱 업데이트가 필요해요.');
-   }
-  }catch(err){
-   updateRecordResult(pending.no,'녹음 종료 요청에 실패했어요: '+escapeHtml(err.message||String(err)));
+  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.stopRecording==='function'){
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);
+   if(btn)btn.textContent='⏳ 음성 확인 중…';
+   updateRecordResult(pending.no,'⏳ 녹음 종료 요청을 보냈어요. 영어 음성을 확인하고 있습니다…');
+   try{window.IlbbangAndroid.stopRecording(pending.requestId);}
+   catch(err){updateRecordResult(pending.no,'녹음 종료 요청에 실패했어요: '+escapeHtml(err.message||String(err)));}
+  }else{
+   updateRecordResult(pending.no,'⏳ 녹음은 끝났고 음성인식 결과를 기다리고 있어요…');
   }
   return;
  }
- // 음성인식을 먼저 정상 종료해 마지막 인식 결과가 전달될 시간을 준다.
+ // 일반 브라우저 녹음은 음성인식을 정상 종료해 마지막 결과를 받은 뒤 판정합니다.
  if(activeRecognition){try{activeRecognition.stop()}catch(e){recognitionEnded=true;}}
  else recognitionEnded=true;
  if(activeRecorder&&activeRecorder.state!=='inactive')activeRecorder.stop();else recorderEnded=true;

@@ -293,6 +293,7 @@ function speakEnglish(text){
 }
 // 문장 녹음 + 영어 음성인식 일치율 검사
 const SPEAKING_PASS_KEY='ilbbangSeq600SpeakingPass';
+const SPEAKING_ATTEMPT_KEY='ilbbangSeq600SpeakingAttempts';
 let activeRecorder=null, activeStream=null, activeNo=null, activeChunks=[], activeAudioUrl=null;
 let activeRecognition=null, activeTranscript='', recognitionEnded=true, recorderEnded=true, activeSentence=null, activeRecognitionError='', finalizingRecording=false;
 // 녹음 결과와 재생 URL은 화면 갱신과 새로고침 이후에도 복구한다.
@@ -303,6 +304,17 @@ async function saveRecordingBlob(no,blob,html){const db=await recordingDb();retu
 async function loadSavedRecordings(){try{const db=await recordingDb();const rows=await new Promise((resolve,reject)=>{const tx=db.transaction('audio','readonly'),store=tx.objectStore('audio'),out=[];const req=store.openCursor();req.onsuccess=()=>{const c=req.result;if(!c){resolve(out);return;}out.push(c.value);c.continue();};req.onerror=()=>reject(req.error);});db.close();const prefix=key(iso(today),currentDay())+'|';for(const row of rows){if(!String(row.id).startsWith(prefix))continue;const no=Number(String(row.id).split('|').pop());if(!Number.isFinite(no)||!row.blob||!row.blob.size)continue;const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)continue;const old=recordingResults[no]?.audioUrl;if(old)URL.revokeObjectURL(old);recordingResults[no]={html:row.html||'녹음이 저장되어 있어요.',audioUrl:URL.createObjectURL(row.blob)};}}catch(e){console.warn('저장된 녹음 복구 실패',e);}}
 function speakingPasses(){return readMap(SPEAKING_PASS_KEY)}
 function speakingKey(no){return key(iso(today),currentDay())+'|'+no}
+function speakingAttempts(){return readMap(SPEAKING_ATTEMPT_KEY)}
+function autoAddFailedSpeakingToReview(no){
+ const marked=readMap('ilbbangSeq600Review');marked[no]=true;writeMap('ilbbangSeq600Review',marked);
+ const schedule=reviewSchedule();
+ if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),attempts:0};
+ writeMap(REVIEW_SCHEDULE_KEY,schedule);
+ const all=dailyReviewData(),state=all[iso(today)]||{added:[],passed:[]};
+ state.added=[...new Set([...(state.added||[]).map(Number),Number(no)])];
+ state.passed=(state.passed||[]).filter(x=>Number(x)!==Number(no));
+ all[iso(today)]=state;writeMap(DAILY_REVIEW_KEY,all);
+}
 function normalizeWords(value){return String(value||'').toLowerCase().replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean)}
 function speakingMatch(expected,spoken){
  const a=normalizeWords(expected),b=normalizeWords(spoken);
@@ -329,14 +341,22 @@ async function finishSpeakingAttempt(){
  finalizingRecording=true;
  const percent=speakingMatch(item.en,spoken);
  const passes=!!spoken&&percent>=50;
- const saved=speakingPasses(),k=speakingKey(no);
- if(passes)saved[k]={passed:true,percent,transcript:spoken,at:new Date().toISOString()};
- else delete saved[k];
- writeMap(SPEAKING_PASS_KEY,saved);
+ const saved=speakingPasses(),k=speakingKey(no),attemptMap=speakingAttempts();
+ let attemptCount=Number(attemptMap[k]||0);
+ if(passes){
+  saved[k]={passed:true,percent,transcript:spoken,at:new Date().toISOString()};
+  delete attemptMap[k];attemptCount=0;
+ }else{
+  delete saved[k];attemptCount=Math.min(3,attemptCount+1);attemptMap[k]=attemptCount;
+ }
+ writeMap(SPEAKING_PASS_KEY,saved);writeMap(SPEAKING_ATTEMPT_KEY,attemptMap);
+ if(!passes&&attemptCount>=3)autoAddFailedSpeakingToReview(no);
  const transcript=spoken?`<br><b>인식 결과:</b> “${escapeHtml(spoken)}”`:`<br>인식된 음성이 없어요.${activeRecognitionError?` (오류: ${escapeHtml(activeRecognitionError)})`:''}`;
  const result=passes
   ?`<b>✅ 통과 · 일치율 ${percent}%</b>${transcript}<br>이 문장은 말하기 학습을 통과했어요.`
-  :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}%</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
+  :attemptCount>=3
+   ?`<b>📚 3회 실패 · 일치율 ${percent}%</b>${transcript}<br>복습 목록에 자동 등록했어요. 오늘 복습에서 다시 말해 주세요.`
+   :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}% (${attemptCount}/3회)</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
  const mime=activeRecorder?.mimeType||activeChunks[0]?.type||'audio/webm';
  const blob=new Blob(activeChunks,{type:mime});
  recordingResults[no]=recordingResults[no]||{};
@@ -400,10 +420,12 @@ window.onIlbbangNativeVoiceStatus=function(requestId,status){
  }
  if(status==='recording'){
   if(pending.mode==='sentence'){
-   updateRecordResult(pending.no,'🔴 5초 동안 영어 문장을 말해 주세요…');
-   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏺ 녹음 중…';
+   updateRecordResult(pending.no,'🔴 영어 문장을 말해 주세요. 다 말한 뒤 녹음 종료를 눌러 주세요.');
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn){btn.textContent='⏹ 녹음 종료';btn.disabled=false;}
   }else if(pending.mode==='review'){
-   $('reviewFeedback').textContent='🔴 5초 동안 영어 문장을 말해 주세요…';
+   pending.recordingStarted=true;
+   $('reviewFeedback').textContent='🔴 영어 문장을 말해 주세요. 다 말한 뒤 녹음 종료를 누르세요.';
+   $('reviewMicBtn').textContent='⏹ 녹음 종료';$('reviewMicBtn').disabled=false;
   }
   return;
  }
@@ -412,9 +434,10 @@ window.onIlbbangNativeVoiceStatus=function(requestId,status){
   if(!pending.timeoutId)pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),100000);
   if(pending.mode==='sentence'){
    updateRecordResult(pending.no,'⚙️ 음성인식 준비 중…');
-   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⚙️ 준비 중…';
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn){btn.textContent='⚙️ 준비 중…';btn.disabled=true;}
   }else if(pending.mode==='review'){
-   $('reviewFeedback').textContent='⚙️ 음성인식 준비 중…';
+   $('reviewFeedback').textContent='⚙️ 녹음 준비 중…';
+   $('reviewMicBtn').textContent='⚙️ 준비 중…';$('reviewMicBtn').disabled=true;
   }
   return;
  }
@@ -424,9 +447,10 @@ window.onIlbbangNativeVoiceStatus=function(requestId,status){
   pending.timeoutId=setTimeout(()=>nativeVoiceRecognitionTimeout(pending),40000);
   if(pending.mode==='sentence'){
    updateRecordResult(pending.no,'⏳ 음성 확인 중…');
-   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+   const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn){btn.textContent='⏳ 음성 확인 중…';btn.disabled=true;}
   }else if(pending.mode==='review'){
    $('reviewFeedback').textContent='⏳ 음성 확인 중…';
+   $('reviewMicBtn').textContent='⏳ 음성 확인 중…';$('reviewMicBtn').disabled=true;
   }
  }
 };
@@ -463,14 +487,7 @@ window.onIlbbangNativeVoiceResult=async function(result){
     activeChunks=[new Blob([bytes],{type:result.mimeType||'audio/mp4'})];
    }catch(decodeError){console.error('네이티브 녹음 데이터 변환 실패',decodeError);activeRecognitionError=activeRecognitionError||'녹음 데이터를 읽지 못했습니다.';}
   }
-  if(!activeChunks.length&&!transcript){
-   const no=pending.no;
-   activeNo=null;activeSentence=null;activeRecognitionError='';
-   updateRecordResult(no,'녹음/음성인식 실패: '+escapeHtml(error||'녹음 파일을 전달받지 못했습니다.'));
-   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='🎙 다시 녹음';
-   render();
-   return;
-  }
+  // 인식 실패/빈 음성도 한 번의 도전으로 계산합니다.
   await finishSpeakingAttempt();
   return;
  }
@@ -489,6 +506,8 @@ window.onIlbbangNativeVoiceResult=async function(result){
 };
 
 async function startRecording(no){
+ const attemptKey=speakingKey(no),attemptCount=Number(speakingAttempts()[attemptKey]||0);
+ if(attemptCount>=3&&!speakingPasses()[attemptKey]?.passed){alert('이 문장은 3회 도전을 마쳤어요. 오늘 복습 목록에서 다시 연습해 주세요.');return;}
  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.startRecording==='function'){
   if(activeNo!==null||nativeVoicePending){alert('이전 문장의 음성 확인이 끝나지 않았어요. 잠시만 기다려 주세요.');return;}
   const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)return;
@@ -496,7 +515,7 @@ async function startRecording(no){
   recognitionEnded=false;recorderEnded=false;finalizingRecording=false;
   const requestId=nativeVoiceId();nativeVoicePending={requestId,mode:'sentence',no};
   updateRecordResult(no,'마이크를 준비하고 있어요…');
-  const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏺ 녹음 준비 중…';
+  const btn=document.querySelector(`[data-record="${no}"]`);if(btn){btn.textContent='⏺ 녹음 준비 중…';btn.disabled=true;}
   try{window.IlbbangAndroid.startRecording(requestId,'sentence');}
   catch(err){
    nativeVoiceClear();activeNo=null;activeSentence=null;recognitionEnded=true;recorderEnded=true;
@@ -544,7 +563,7 @@ async function startRecording(no){
    if(latestTranscript)activeTranscript=latestTranscript;
    finishSpeakingAttempt();
   };
-  updateRecordResult(no,'🔴 녹음 중이에요. 영어 문장을 한 번 말해 주세요. 화면에 인식 결과가 표시됩니다. 다 말한 뒤 <b>녹음 종료</b>를 누르세요.');
+  updateRecordResult(no,'🔴 녹음 중이에요. 영어 문장을 말해 주세요. 다 말한 뒤 <b>녹음 종료</b>를 누르면 일치율을 확인합니다.');
   const btn=document.querySelector(`[data-record="${no}"]`);if(btn)btn.textContent='⏹ 녹음 종료';
   try{recognition.start();}
   catch(e){activeRecognitionError='recognition-start-failed';throw e;}
@@ -564,7 +583,7 @@ function finishRecording(){
  if(nativeVoicePending&&nativeVoicePending.mode==='sentence'){
   const pending=nativeVoicePending;
   updateRecordResult(pending.no,'⏳ 녹음 종료 요청을 보냈어요. 음성인식 결과를 기다려 주세요…');
-  const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+  const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn){btn.textContent='⏳ 음성 확인 중…';btn.disabled=true;}
   try{
    if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.stopRecording==='function'){
     window.IlbbangAndroid.stopRecording(pending.requestId);
@@ -614,10 +633,12 @@ function render(){
  $('sentenceList').innerHTML=visible.map(x=>{
   let text=viewMode==='ko'?escapeHtml(x.ko):viewMode==='en'?escapeHtml(x.en):`<div>${escapeHtml(x.ko)}</div><div class="english" style="font-size:.86em;color:#5f695e;margin-top:3px">${escapeHtml(x.en)}</div>`;
   const pass=speaking[speakingKey(x.no)];
+  const attemptCount=Number(speakingAttempts()[speakingKey(x.no)]||0);
   const rec=recordingResults[x.no];
   const initial=pass?.passed?`<b>✅ 통과 · 일치율 ${pass.percent}%</b><br>인식 결과: “${escapeHtml(pass.transcript||'')}”`:'';
-  const recordLabel=activeNo===x.no?'⏹ 녹음 종료':pass?.passed?'✅ 말하기 통과':'🎙 녹음';
-  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">${recordLabel}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result ${rec||initial?'show':''}" id="record-${x.no}">${rec?.html||initial}${rec?.audioUrl?`<audio controls class="record-audio" src="${rec.audioUrl}"></audio>`:''}</div></span></li>`;
+  const exhausted=attemptCount>=3&&!pass?.passed;
+  const recordLabel=activeNo===x.no?'⏹ 녹음 종료':pass?.passed?'✅ 말하기 통과':exhausted?'📚 복습 대기':attemptCount?`🎙 다시 녹음 (${attemptCount}/3)`:'🎙 녹음';
+  return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}" ${exhausted?'disabled':''}>${recordLabel}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result ${rec||initial?'show':''}" id="record-${x.no}">${rec?.html||initial}${rec?.audioUrl?`<audio controls class="record-audio" src="${rec.audioUrl}"></audio>`:''}</div></span></li>`;
  }).join('');
  // Android WebView에서 부모 요소의 위임 클릭이 누락되는 경우를 피하도록
  // 녹음 버튼 자체에 직접 클릭 동작을 연결합니다.
@@ -666,9 +687,10 @@ function renderReviewGate(items,mode='scheduled'){
  $('reviewGateKorean').textContent=item.ko;
  $('reviewGateNumber').textContent=`문장 ${item.no}번 · ${index+1} / ${items.length}`;
  $('reviewMicBtn').style.display=showingAnswer?'none':'block';
- $('reviewMicBtn').disabled=reviewListening;
+ const nativeReviewActive=nativeVoicePending?.mode==='review';
+ $('reviewMicBtn').disabled=reviewListening&&(!nativeReviewActive||!nativeVoicePending.recordingStarted);
  $('reviewMicBtn').classList.toggle('listening',reviewListening);
- $('reviewMicBtn').textContent=reviewListening?'🔴 듣고 있어요…':'🎙️ 영어로 말하기';
+ $('reviewMicBtn').textContent=nativeReviewActive&&nativeVoicePending.recordingStarted?'⏹ 녹음 종료':nativeReviewActive?'⚙️ 준비 중…':reviewListening?'🔴 듣고 있어요…':'🎙️ 영어로 말하기';
  $('reviewAnswer').style.display=showingAnswer?'block':'none';
  $('reviewAnswer').textContent=showingAnswer?item.en:'';
  $('reviewRevealBtn').style.display=showingAnswer?'block':'none';
@@ -699,6 +721,13 @@ function handleReviewFailure(item,mode,message){
 function completeReviewItem(item,mode,usedAnswer=false){
  reviewListening=false;reviewRecognition=null;
  reviewAttemptCounts[item.no]=0;reviewFallbackNo=null;reviewFallbackMode=null;
+ // 오늘 학습 문장을 복습에서 마무리하면 말하기 통과 조건도 함께 충족합니다.
+ if(previewDay===null&&DATA[currentDay()-1]?.items.some(x=>x.no===item.no)){
+  const passed=speakingPasses(),k=speakingKey(item.no);
+  passed[k]={passed:true,percent:100,transcript:usedAnswer?'복습 정답 확인':'복습 말하기 통과',at:new Date().toISOString()};
+  writeMap(SPEAKING_PASS_KEY,passed);
+  const attempts=speakingAttempts();delete attempts[k];writeMap(SPEAKING_ATTEMPT_KEY,attempts);
+ }
  if(mode==='daily'){
   const state=todayDailyReview();state.passed=state.passed||[];if(!state.passed.includes(item.no))state.passed.push(item.no);saveTodayDailyReview(state);
   reviewPassedInSession++;reviewCurrentNo=null;
@@ -716,6 +745,14 @@ function completeReviewItem(item,mode,usedAnswer=false){
 }
 function startReviewSpeaking(){
  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.startRecording==='function'){
+  if(nativeVoicePending&&nativeVoicePending.mode==='review'){
+   if(nativeVoicePending.recordingStarted){
+    $('reviewFeedback').textContent='⏳ 녹음을 종료했어요. 음성인식 결과를 기다려 주세요…';
+    $('reviewMicBtn').textContent='⏳ 음성 확인 중…';$('reviewMicBtn').disabled=true;
+    try{window.IlbbangAndroid.stopRecording(nativeVoicePending.requestId);}catch(err){$('reviewFeedback').textContent='녹음 종료에 실패했어요: '+(err.message||String(err));}
+   }
+   return;
+  }
   if(reviewListening||reviewFallbackNo!==null||nativeVoicePending)return;
   const due=reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();
   if(!due.length){render();return;}
@@ -723,7 +760,7 @@ function startReviewSpeaking(){
   reviewListening=true;renderReviewGate(due,mode);
   $('reviewFeedback').textContent='마이크를 준비하고 있어요…';
   const requestId=nativeVoiceId();
-  nativeVoicePending={requestId,mode:'review',no:item.no,reviewMode:mode};
+  nativeVoicePending={requestId,mode:'review',no:item.no,reviewMode:mode,recordingStarted:false};
   try{window.IlbbangAndroid.startRecording(requestId,'review');}
   catch(err){
    nativeVoiceClear();
@@ -799,7 +836,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -809,7 +846,7 @@ $('importBackup').onclick=()=>$('backupFile').click();
 $('backupFile').onchange=async e=>{
  const file=e.target.files&&e.target.files[0];if(!file)return;
  try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
-  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY];
+  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
   for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
@@ -930,7 +967,8 @@ async function registerPushDevice() {
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
   'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, 'ilbbangSeqVoiceRate',
-  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays'
+  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays',
+  SPEAKING_PASS_KEY, SPEAKING_ATTEMPT_KEY
 ];
 let syncReady = false;
 let suppressSync = false;
@@ -1202,7 +1240,7 @@ function mergeMapStrings(cloudValue, localValue) {
 }
 function mergeSnapshots(cloudData, localData) {
   const merged = { ...(cloudData || {}) };
-  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,'ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests','ilbbangKekeGrowthDays'];
+  const mapKeys = ['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,'ilbbangSeq600StarAwards','ilbbangSeq600RewardRequests','ilbbangKekeGrowthDays',SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
   for (const key of mapKeys) {
     if (cloudData?.[key] !== undefined || localData?.[key] !== undefined) merged[key] = mergeMapStrings(cloudData?.[key], localData?.[key]);
   }

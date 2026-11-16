@@ -547,11 +547,20 @@ async function startRecording(no){
 }
 function finishRecording(){
  if(activeNo===null)return;
- // Android는 5초 녹음 후 네이티브가 자동으로 인식합니다. 인식 중 학습종료를 눌러도
- // 빈 결과로 조기 확정하지 않고 네이티브 결과 또는 제한시간 종료를 기다립니다.
+ // Android APK에서는 버튼을 누르면 네이티브 녹음을 즉시 끝내고 인식을 시작합니다.
  if(nativeVoicePending&&nativeVoicePending.mode==='sentence'){
-  updateRecordResult(activeNo,'⏳ 녹음은 끝났어요. 음성인식 결과를 기다리고 있어요…');
-  const btn=document.querySelector(`[data-record="${activeNo}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+  const pending=nativeVoicePending;
+  updateRecordResult(pending.no,'⏳ 녹음을 마치고 음성인식을 시작하고 있어요…');
+  const btn=document.querySelector(`[data-record="${pending.no}"]`);if(btn)btn.textContent='⏳ 음성 확인 중…';
+  try{
+   if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.stopRecording==='function'){
+    window.IlbbangAndroid.stopRecording(pending.requestId);
+   }else{
+    updateRecordResult(pending.no,'Android 녹음 종료 기능이 없는 앱 버전이에요. 앱 업데이트가 필요해요.');
+   }
+  }catch(err){
+   updateRecordResult(pending.no,'녹음 종료 요청에 실패했어요: '+escapeHtml(err.message||String(err)));
+  }
   return;
  }
  // 음성인식을 먼저 정상 종료해 마지막 인식 결과가 전달될 시간을 준다.

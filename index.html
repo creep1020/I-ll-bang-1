@@ -77,8 +77,6 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 if ('serviceWorker' in navigator) {
   let appRefreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    // Android APK의 WebView에서는 서비스워커 제어권 변경만으로 화면을 새로고침하지 않습니다.
-    if (window.IlbbangAndroid) return;
     if (appRefreshing) return;
     appRefreshing = true;
     window.location.reload();
@@ -116,7 +114,7 @@ if ('serviceWorker' in navigator) {
 <section class="panel" id="sentenceStudyPanel"><div class="small" style="margin-bottom:10px">🎙 기존 녹음은 내 목소리 확인용이에요. 복습 통과는 별도의 영어 음성 인식으로 확인합니다.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
 <section class="panel" id="studyActionsPanel">
 <div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
-<div class="status" id="studyStatus">학습을 마친 뒤 완료 버튼을 눌러 기록하세요.</div><div id="bonusGameWrap" style="display:none;margin-top:10px"><button class="primary" id="bonusGameBtn" style="width:100%">🎁 보너스 미니게임 1분 도전하기</button><div class="small" style="text-align:center;margin-top:5px">오늘 학습을 완료한 보너스 게임이에요!</div></div>
+<div class="status" id="studyStatus">학습을 마친 뒤 완료 버튼을 눌러 기록하세요.</div><div id="bonusGameWrap" style="display:none;margin-top:10px"><button class="primary" id="bonusGameBtn" style="width:100%">🎁 보너스 미니게임 1분 도전하기</button><div class="small" id="bonusGameHint" style="text-align:center;margin-top:5px">오늘의 20문장 학습을 완료하면 1분 보너스 게임이 열려요.</div></div>
 </section>
 <section class="panel" id="rewardPanel">
 <strong style="font-size:14px">⭐ 나의 학습 보상</strong>
@@ -185,6 +183,7 @@ function readMap(name){try{return JSON.parse(localStorage.getItem(name)||'{}')}c
 function writeMap(name,obj){localStorage.setItem(name,JSON.stringify(obj))}
 const REVIEW_SCHEDULE_KEY='ilbbangSeq600ReviewSchedule';
 const DAILY_REVIEW_KEY='ilbbangSeq600DailyReview';
+const REVIEW_RESET_KEY='ilbbangSeq600ReviewResetAt';
 const REVIEW_INTERVALS=[1,3,7,14,30];
 function addDaysISO(dateString,days){const d=new Date((dateString||iso(today))+'T12:00:00');d.setDate(d.getDate()+days);return iso(d);}
 function reviewSchedule(){return readMap(REVIEW_SCHEDULE_KEY)}
@@ -284,17 +283,12 @@ function populateVoices(){
  availableVoices=window.speechSynthesis.getVoices().filter(isEnglishVoice);
 }
 function speakEnglish(text){
- const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
- // Android APK에서는 네이티브 TextToSpeech를 우선 사용합니다.
- if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'){
-  try{window.IlbbangAndroid.speak(String(text||''),rate);return;}
-  catch(err){console.warn('Android TTS 연결 실패',err);}
- }
- // 일반 브라우저는 기존 Web Speech API를 그대로 사용합니다.
- if(!('speechSynthesis' in window)){alert('이 기기에서 음성 재생 기능을 사용할 수 없어요.');return;}
+ if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요. 크롬에서 열어 주세요.');return;}
  populateVoices();window.speechSynthesis.cancel();
- const utterance=new SpeechSynthesisUtterance(String(text||''));
- utterance.lang='en-US';utterance.rate=rate;utterance.pitch=0.92;
+ const utterance=new SpeechSynthesisUtterance(text);
+ utterance.lang='en-US';
+ utterance.rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
+ utterance.pitch=0.92;
  const voice=preferredVoice();if(voice)utterance.voice=voice;
  window.speechSynthesis.speak(utterance);
 }
@@ -333,7 +327,7 @@ function speakingAttempts(){return readMap(SPEAKING_ATTEMPT_KEY)}
 function autoAddFailedSpeakingToReview(no){
  const marked=readMap('ilbbangSeq600Review');marked[no]=true;writeMap('ilbbangSeq600Review',marked);
  const schedule=reviewSchedule();
- if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),attempts:0};
+ if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),addedAtTime:new Date().toISOString(),attempts:0};
  writeMap(REVIEW_SCHEDULE_KEY,schedule);
  const all=dailyReviewData(),state=all[iso(today)]||{added:[],passed:[]};
  state.added=[...new Set([...(state.added||[]).map(Number),Number(no)])];
@@ -541,8 +535,9 @@ window.onIlbbangNativeVoiceResult=async function(result){
    return;
   }
   const expected=normalizeSpokenSentence(item.en),actual=normalizeSpokenSentence(transcript);
-  if(actual&&actual===expected)completeReviewItem(item,pending.reviewMode,false);
-  else handleReviewFailure(item,pending.reviewMode,`아직 문장이 달라요. 인식된 문장: “${transcript}”`);
+  const percent=speakingMatch(item.en,transcript);
+  if(actual&&percent>=50)completeReviewItem(item,pending.reviewMode,false,percent);
+  else handleReviewFailure(item,pending.reviewMode,`아직 일치율이 부족해요 (${percent}%). 인식된 문장: “${transcript}”`);
  }
 };
 
@@ -710,7 +705,10 @@ function render(){
  $('markDone').disabled=previewDay!==null||done||!allSentencesDone||!allSpeakingPassed||reviewLocked;
  $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':!allSentencesDone?'문장 학습을 모두 완료해 주세요':!allSpeakingPassed?'모든 문장의 녹음 통과가 필요해요':'✓ 오늘 학습 완료';
  $('undoDone').disabled=previewDay!==null||!done;
- $('bonusGameWrap').style.display=(previewDay===null&&done)?'block':'none';
+ $('bonusGameWrap').style.display='block';
+ $('bonusGameBtn').disabled=previewDay!==null||!done;
+ $('bonusGameBtn').textContent=done?'🎁 보너스 미니게임 1분 도전하기':'🔒 오늘 학습 완료 후 보너스 게임 열기';
+ $('bonusGameHint').textContent=done?'오늘 학습을 완료했어요! 1분 보너스 게임을 할 수 있어요.':'오늘의 20문장 학습을 완료하면 1분 보너스 게임이 열려요.';
  $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개를 먼저 통과해야 새 학습을 시작할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone&&!allSpeakingPassed?`문장 학습은 체크했어요. 녹음 통과 ${data.items.filter(x=>speaking[speakingKey(x.no)]?.passed).length}/${data.items.length}개가 필요해요.`:allSentencesDone?'모든 문장을 학습하고 녹음도 통과했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
  renderCalendar();
  if(previewDay===null&&readRecords()[key(iso(today),currentDay())])awardToday();
@@ -759,13 +757,13 @@ function handleReviewFailure(item,mode,message){
   $('reviewFeedback').textContent=`${message} (${attempts}/3회) 한 번 더 해 볼까요?`;
  }
 }
-function completeReviewItem(item,mode,usedAnswer=false){
+function completeReviewItem(item,mode,usedAnswer=false,matchPercent=100){
  reviewListening=false;reviewRecognition=null;
  reviewAttemptCounts[item.no]=0;reviewFallbackNo=null;reviewFallbackMode=null;
  // 오늘 학습 문장을 복습에서 마무리하면 말하기 통과 조건도 함께 충족합니다.
  if(previewDay===null&&DATA[currentDay()-1]?.items.some(x=>x.no===item.no)){
   const passed=speakingPasses(),k=speakingKey(item.no);
-  passed[k]={passed:true,percent:100,transcript:usedAnswer?'복습 정답 확인':'복습 말하기 통과',at:new Date().toISOString()};
+  passed[k]={passed:true,percent:matchPercent,transcript:usedAnswer?'복습 정답 확인':'복습 말하기 통과',at:new Date().toISOString()};
   writeMap(SPEAKING_PASS_KEY,passed);
   const attempts=speakingAttempts();delete attempts[k];writeMap(SPEAKING_ATTEMPT_KEY,attempts);
  }
@@ -822,8 +820,9 @@ function startReviewSpeaking(){
   if(attemptResolved)return;attemptResolved=true;
   const spoken=event.results?.[0]?.[0]?.transcript||'';
   const expected=normalizeSpokenSentence(item.en),actual=normalizeSpokenSentence(spoken);
-  if(actual&&actual===expected){completeReviewItem(item,mode,false);}
-  else{handleReviewFailure(item,mode,spoken?`아직 문장이 달라요. 인식된 문장: “${spoken}”`:'잘 들리지 않았어요.');}
+  const percent=speakingMatch(item.en,spoken);
+  if(actual&&percent>=50){completeReviewItem(item,mode,false,percent);}
+  else{handleReviewFailure(item,mode,spoken?`아직 일치율이 부족해요 (${percent}%). 인식된 문장: “${spoken}”`:'잘 들리지 않았어요.');}
  };
  recognition.onerror=event=>{
   if(attemptResolved)return;attemptResolved=true;
@@ -877,7 +876,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -921,7 +920,7 @@ $('sentenceList').addEventListener('click',e=>{
  const btn=e.target.closest('[data-review]');if(!btn)return;
  const no=Number(btn.getAttribute('data-review'));let m=readMap('ilbbangSeq600Review'),schedule=reviewSchedule(),daily=dailyReviewData(),todayState=daily[iso(today)]||{added:[],passed:[]};
  if(m[no]){delete m[no];delete schedule[no];todayState.added=(todayState.added||[]).filter(x=>Number(x)!==no);todayState.passed=(todayState.passed||[]).filter(x=>Number(x)!==no);}
- else{m[no]=true;if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),attempts:0};todayState.added=todayState.added||[];if(!todayState.added.includes(no))todayState.added.push(no);}
+ else{m[no]=true;if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),addedAtTime:new Date().toISOString(),attempts:0};todayState.added=todayState.added||[];if(!todayState.added.includes(no))todayState.added.push(no);}
  daily[iso(today)]={added:[...new Set((todayState.added||[]).map(Number))],passed:[...new Set((todayState.passed||[]).map(Number))]};writeMap(DAILY_REVIEW_KEY,daily);
  writeMap('ilbbangSeq600Review',m);writeMap(REVIEW_SCHEDULE_KEY,schedule);render();
 });
@@ -1007,7 +1006,7 @@ async function registerPushDevice() {
 }
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
-  'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, 'ilbbangSeqVoiceRate',
+  'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, REVIEW_RESET_KEY, 'ilbbangSeqVoiceRate',
   'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays',
   SPEAKING_PASS_KEY, SPEAKING_ATTEMPT_KEY
 ];
@@ -1087,7 +1086,7 @@ panel.innerHTML = `
           </div>
           <div style="margin:0 0 16px;padding:12px;border:1px solid #d8b6a8;border-radius:12px;background:#fffaf7">
             <strong style="font-size:14px">📚 자녀 학습 기록 초기화</strong>
-            <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장별 체크와 날짜별 학습 완료 기록만 초기화합니다. 다른 프로필과 문장, 복습 목록, 별·보상, 게임 기록, 알림 설정은 유지됩니다.</div>
+            <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장 체크, 말하기 통과, 학습 완료 기록, 복습 목록과 복습 일정을 초기화합니다. 별·보상·게임 기록과 다른 프로필은 유지됩니다.</div>
             <button id="resetStudyRecords" type="button" style="border-color:#c66;color:#a33;width:100%">선택한 프로필의 학습 기록 초기화</button>
             <div class="small" id="resetStudyStatus" style="margin-top:8px" aria-live="polite"></div>
           </div>
@@ -1293,6 +1292,34 @@ function mergeSnapshots(cloudData, localData) {
     }
     merged[DAILY_REVIEW_KEY]=JSON.stringify(combined);
   }
+  const resetAt=[cloudData?.[REVIEW_RESET_KEY],localData?.[REVIEW_RESET_KEY]]
+    .filter(v=>typeof v==='string'&&v.trim()).sort().pop();
+  if(resetAt){
+    merged[REVIEW_RESET_KEY]=resetAt;
+    const resetDay=resetAt.slice(0,10);
+    const marked=parseObject(merged['ilbbangSeq600Review']);
+    const schedule=parseObject(merged[REVIEW_SCHEDULE_KEY]);
+    for(const no of Object.keys(marked)){
+      const entry=schedule[no];
+      const addedTime=entry?.addedAtTime;
+      const isAfterReset=addedTime
+        ? Date.parse(addedTime)>Date.parse(resetAt)
+        : !!(entry?.addedAt && String(entry.addedAt)>resetDay);
+      if(!isAfterReset){delete marked[no];delete schedule[no];}
+    }
+    merged['ilbbangSeq600Review']=JSON.stringify(marked);
+    merged[REVIEW_SCHEDULE_KEY]=JSON.stringify(schedule);
+    const daily=parseObject(merged[DAILY_REVIEW_KEY]);
+    for(const date of Object.keys(daily)){
+      if(date<resetDay){delete daily[date];continue;}
+      const state=daily[date]||{};
+      daily[date]={
+        added:[...new Set((state.added||[]).map(Number).filter(no=>!!marked[no]))],
+        passed:[...new Set((state.passed||[]).map(Number).filter(no=>!!marked[no]))]
+      };
+    }
+    merged[DAILY_REVIEW_KEY]=JSON.stringify(daily);
+  }
   for (const key of ['ilbbangSeq600Start','ilbbangSeqVoiceRate']) {
     if (cloudData?.[key] === undefined && localData?.[key] !== undefined) merged[key] = localData[key];
   }
@@ -1397,26 +1424,32 @@ $login('resetStudyRecords').onclick = async () => {
   }
   const selected = profiles.find(p => p.id === activeProfileId);
   if (!selected) return;
-  if (!confirm(`현재 선택된 '${selected.name}' 프로필의 학습 진행을 초기화할까요?\n\nDAY가 1일차로 돌아가고, 문장별 체크와 날짜별 완료 기록이 삭제됩니다. 별·보상·게임 기록과 다른 프로필은 그대로 유지됩니다.`)) return;
+  if (!confirm(`현재 선택된 '${selected.name}' 프로필의 학습 진행을 초기화할까요?\n\nDAY가 1일차로 돌아가고, 문장 체크·말하기 통과·날짜별 완료 기록·복습 목록·복습 일정이 삭제됩니다. 별·보상·게임 기록과 다른 프로필은 그대로 유지됩니다.`)) return;
   const phrase = prompt(`마지막 확인입니다.
 
 초기화할 프로필: ${selected.name}
 
-DAY를 1일차로 되돌리고 학습 완료 기록을 지우려면 프로필 이름을 똑같이 입력해 주세요.`);
+DAY를 1일차로 되돌리고 학습·말하기·복습 기록을 지우려면 프로필 이름을 똑같이 입력해 주세요.`);
   if (phrase !== selected.name) {
     $login('resetStudyStatus').textContent = '프로필 이름이 일치하지 않아 초기화를 취소했어요.';
     return;
   }
   const before = readLocalSnapshot();
   try {
-    localStorage.removeItem('ilbbangSeq600Records');
-    localStorage.removeItem('ilbbangSeq600Checked');
+    localStorage.setItem('ilbbangSeq600Records', '{}');
+    localStorage.setItem('ilbbangSeq600Checked', '{}');
+    localStorage.setItem('ilbbangSeq600Review', '{}');
+    localStorage.setItem(REVIEW_SCHEDULE_KEY, '{}');
+    localStorage.setItem(DAILY_REVIEW_KEY, '{}');
+    localStorage.setItem(REVIEW_RESET_KEY, new Date().toISOString());
+    localStorage.setItem(SPEAKING_PASS_KEY, '{}');
+    localStorage.setItem(SPEAKING_ATTEMPT_KEY, '{}');
     localStorage.setItem('ilbbangSeq600Start', iso(today));
     $login('startDate').value = iso(today);
     await persistProfileState();
     lastCloudData = readLocalSnapshot();
     if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
-    $login('resetStudyStatus').textContent = `'${selected.name}' 프로필의 학습 기록을 초기화하고 DAY 1일차로 되돌렸어요. 별과 보상 기록은 유지됩니다.`;
+    $login('resetStudyStatus').textContent = `'${selected.name}' 프로필의 학습·말하기·복습 기록을 초기화하고 DAY 1일차로 되돌렸어요. 별과 보상 기록은 유지됩니다.`;
     status(`☁️ ${selected.name} 프로필의 학습 기록 초기화 및 동기화 완료`);
   } catch (err) {
     applySnapshot(before);
@@ -1772,8 +1805,6 @@ onAuthStateChanged(auth, async user => {
  $('mgStart').onclick=start;$('mgSkip').onclick=()=>{clearInterval(tick);clearGameTimers();active=false;layer.classList.remove('show');$('mgTimer').classList.remove('mg-frenzy');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';};
  $('mgSound').onclick=()=>{sound=!sound;$('mgSound').textContent=sound?'🔊 소리 켬':'🔇 소리 끔';if(sound)beep(700,.08);};
  const bonusBtn=$('bonusGameBtn');if(bonusBtn)bonusBtn.onclick=()=>open(true);
- // 앱 실행 시 자동으로 게임을 띄우지 않습니다.
- // 미니게임은 학습 완료 후 보너스 버튼을 눌렀을 때만 실행합니다.
 })();
 </script>
 </body></html>

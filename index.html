@@ -437,7 +437,20 @@ window.onIlbbangNativeVoiceResult=async function(result){
  const transcript=String(result.transcript||'').trim();
  const error=String(result.error||'').trim();
  if(pending.mode==='sentence'){
-  if(activeNo!==pending.no)return;
+  // 네이티브 요청 ID가 일치하면 해당 요청이 현재 문장 녹음의 기준입니다.
+  // 화면 재렌더링 등으로 activeNo가 어긋나도 결과를 버리거나 녹음 잠금을 남기지 않습니다.
+  if(activeNo!==pending.no){
+   const pendingItem=DATA.flatMap(d=>d.items).find(x=>x.no===pending.no);
+   if(!pendingItem){
+    activeNo=null;activeSentence=null;activeRecorder=null;activeRecognition=null;activeStream=null;
+    activeChunks=[];activeTranscript='';activeRecognitionError='';recognitionEnded=true;recorderEnded=true;finalizingRecording=false;
+    render();
+    return;
+   }
+   activeNo=pending.no;
+   activeSentence=pendingItem;
+   finalizingRecording=false;
+  }
   activeTranscript=transcript;
   activeRecognitionError=error;
   activeRecorder=null;activeRecognition=null;activeStream=null;
@@ -477,7 +490,7 @@ window.onIlbbangNativeVoiceResult=async function(result){
 
 async function startRecording(no){
  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.startRecording==='function'){
-  if(activeNo!==null){alert('먼저 진행 중인 녹음을 마쳐 주세요.');return;}
+  if(activeNo!==null||nativeVoicePending){alert('이전 문장의 음성 확인이 끝나지 않았어요. 잠시만 기다려 주세요.');return;}
   const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)return;
   activeNo=no;activeSentence=item;activeChunks=[];activeTranscript='';activeRecognitionError='';
   recognitionEnded=false;recorderEnded=false;finalizingRecording=false;
@@ -606,6 +619,24 @@ function render(){
   const recordLabel=activeNo===x.no?'⏹ 녹음 종료':pass?.passed?'✅ 말하기 통과':'🎙 녹음';
   return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}">${recordLabel}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result ${rec||initial?'show':''}" id="record-${x.no}">${rec?.html||initial}${rec?.audioUrl?`<audio controls class="record-audio" src="${rec.audioUrl}"></audio>`:''}</div></span></li>`;
  }).join('');
+ // Android WebView에서 부모 요소의 위임 클릭이 누락되는 경우를 피하도록
+ // 녹음 버튼 자체에 직접 클릭 동작을 연결합니다.
+ $('sentenceList').querySelectorAll('button[data-record]').forEach(recordButton=>{
+  recordButton.onclick=e=>{
+   e.preventDefault();
+   e.stopPropagation();
+   const no=Number(recordButton.getAttribute('data-record'));
+   const pending=nativeVoicePending;
+   if(pending&&pending.mode==='sentence'){
+    if(Number(pending.no)===no)finishRecording();
+    else alert('이전 문장의 음성 확인이 끝난 뒤 다음 문장을 녹음해 주세요.');
+    return;
+   }
+   if(activeNo===no){finishRecording();return;}
+   if(activeNo!==null){alert('먼저 진행 중인 녹음을 마쳐 주세요.');return;}
+   startRecording(no);
+  };
+ });
  $('koreanBtn').classList.toggle('active',viewMode==='ko');$('englishBtn').classList.toggle('active',viewMode==='en');$('bothBtn').classList.toggle('active',viewMode==='both');
  $('reviewGatePanel').style.display=reviewLocked?'block':'none';
  $('dayControlsPanel').style.display=reviewLocked?'none':'block';

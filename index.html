@@ -197,20 +197,15 @@ const REVIEW_INTERVALS=[1,3,7,14,30];
 function addDaysISO(dateString,days){const d=new Date((dateString||iso(today))+'T12:00:00');d.setDate(d.getDate()+days);return iso(d);}
 function reviewSchedule(){return readMap(REVIEW_SCHEDULE_KEY)}
 function dailyReviewData(){return readMap(DAILY_REVIEW_KEY)}
-function todayDailyReview(){const all=dailyReviewData();return all[iso(today)]||{added:[],passed:[],scheduledPassed:[]};}
-const DAILY_SCHEDULED_REVIEW_LIMIT=8;
-function todayScheduledReviewPassed(){return [...new Set((todayDailyReview().scheduledPassed||[]).map(Number))];}
+function todayDailyReview(){const all=dailyReviewData();return all[iso(today)]||{added:[],passed:[]};}
 function todayDailyReviewItems(){const state=todayDailyReview(),all=DATA.flatMap(d=>d.items),marked=readMap('ilbbangSeq600Review');return (state.added||[]).filter(no=>marked[no]&&!(state.passed||[]).includes(no)).map(no=>all.find(x=>x.no===Number(no))).filter(Boolean);}
-function saveTodayDailyReview(state){const all=dailyReviewData();all[iso(today)]={added:[...new Set((state.added||[]).map(Number))],passed:[...new Set((state.passed||[]).map(Number))],scheduledPassed:[...new Set((state.scheduledPassed||[]).map(Number))]};writeMap(DAILY_REVIEW_KEY,all);}
+function saveTodayDailyReview(state){const all=dailyReviewData();all[iso(today)]={added:[...new Set((state.added||[]).map(Number))],passed:[...new Set((state.passed||[]).map(Number))]};writeMap(DAILY_REVIEW_KEY,all);}
 function dueReviewItems(){
  const marked=readMap('ilbbangSeq600Review'),schedule=reviewSchedule(),todayKey=iso(today);
- const passedToday=new Set(todayScheduledReviewPassed());
- const remainingSlots=Math.max(0,DAILY_SCHEDULED_REVIEW_LIMIT-passedToday.size);
- if(!remainingSlots)return [];
- return DATA.flatMap(d=>d.items).filter(item=>marked[item.no]&&!passedToday.has(item.no)).filter(item=>{
+ return DATA.flatMap(d=>d.items).filter(item=>marked[item.no]).filter(item=>{
   if(!schedule[item.no])return true;
   return (schedule[item.no].dueDate||todayKey)<=todayKey;
- }).sort((a,b)=>((schedule[a.no]?.dueDate||todayKey).localeCompare(schedule[b.no]?.dueDate||todayKey))||a.no-b.no).slice(0,remainingSlots);
+ }).sort((a,b)=>((schedule[a.no]?.dueDate||todayKey).localeCompare(schedule[b.no]?.dueDate||todayKey))||a.no-b.no);
 }
 function ensureReviewSchedules(){
  const marked=readMap('ilbbangSeq600Review'),schedule=reviewSchedule();let changed=false;
@@ -334,10 +329,16 @@ function populateVoices(){
 function speakEnglish(text){
  const cleanText=String(text||'').trim();if(!cleanText)return;
  const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
- // Android WebView에서는 브라우저 speechSynthesis 대신 기기 내장 TTS를 사용합니다.
- if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'){
-  try{window.IlbbangAndroid.speak(cleanText,rate);return;}
-  catch(error){console.warn('Android TTS 호출 실패, 브라우저 음성으로 전환합니다.',error);}
+ // Android TTS가 영어 음성을 실제로 지원할 때만 네이티브 엔진을 사용합니다.
+ // 초기화 전이거나 영어 음성 데이터가 없으면 브라우저 음성으로 대체합니다.
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'&&
+    typeof window.IlbbangAndroid.canSpeakEnglish==='function'){
+  try{
+   if(window.IlbbangAndroid.canSpeakEnglish()){
+    window.IlbbangAndroid.speak(cleanText,rate);
+    return;
+   }
+  }catch(error){console.warn('Android TTS 사용 불가, 브라우저 음성으로 전환합니다.',error);}
  }
  if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요.');return;}
  populateVoices();window.speechSynthesis.cancel();
@@ -738,6 +739,15 @@ function render(){
  }).join('');
  // Android WebView에서 부모 요소의 위임 클릭이 누락되는 경우를 피하도록
  // 녹음 버튼 자체에 직접 클릭 동작을 연결합니다.
+ $('sentenceList').querySelectorAll('button[data-speak]').forEach(speakButton=>{
+  speakButton.onclick=e=>{
+   e.preventDefault();
+   e.stopPropagation();
+   const no=Number(speakButton.getAttribute('data-speak'));
+   const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);
+   if(item)speakEnglish(item.en);
+  };
+ });
  $('sentenceList').querySelectorAll('button[data-record]').forEach(recordButton=>{
   recordButton.onclick=e=>{
    e.preventDefault();
@@ -835,7 +845,6 @@ function completeReviewItem(item,mode,usedAnswer=false,matchPercent=100){
   const marked=readMap('ilbbangSeq600Review'),schedule=reviewSchedule(),entry=schedule[item.no]||{stage:0,dueDate:iso(today),addedAt:iso(today),attempts:0};
   entry.attempts=(entry.attempts||0)+1;
   const nextStage=Number(entry.stage||0)+1;
-  const dailyState=todayDailyReview();dailyState.scheduledPassed=dailyState.scheduledPassed||[];if(!dailyState.scheduledPassed.includes(item.no))dailyState.scheduledPassed.push(item.no);saveTodayDailyReview(dailyState);
   if(nextStage>=REVIEW_INTERVALS.length){delete marked[item.no];delete schedule[item.no];writeMap('ilbbangSeq600Review',marked);writeMap(REVIEW_SCHEDULE_KEY,schedule);reviewPassedInSession++;reviewCurrentNo=null;$('reviewFeedback').textContent=usedAnswer?'영어 정답을 확인하고 복습을 마쳤어요.':'🎉 완벽해요! 30일 복습까지 통과했어요. 이 문장은 복습을 졸업했어요.';}
   else{entry.stage=nextStage;entry.dueDate=addDaysISO(iso(today),REVIEW_INTERVALS[nextStage]);schedule[item.no]=entry;writeMap(REVIEW_SCHEDULE_KEY,schedule);reviewPassedInSession++;reviewCurrentNo=null;$('reviewFeedback').textContent=usedAnswer?'영어 정답을 확인했어요. 다음 복습 일정이 저장됐어요.':'✨ 정답이에요! 다음 복습 일정이 저장됐어요.';}
  }
@@ -1035,6 +1044,8 @@ $('sentenceList').addEventListener('click',e=>{
  writeMap('ilbbangSeq600Review',m);writeMap(REVIEW_SCHEDULE_KEY,schedule);render();
 });
 window.ilbbangRenderAfterCloudSync = render;
+// 문장 목록은 녹음 파일 복원과 관계없이 앱 진입 즉시 표시합니다.
+render();
 loadSavedRecordings().finally(()=>render());
 
 // 음성 목록은 브라우저가 비동기로 제공할 수 있어 준비 완료 이벤트도 처리
@@ -1457,7 +1468,7 @@ function mergeSnapshots(cloudData, localData) {
     const cloudDaily=parseObject(cloudData?.[DAILY_REVIEW_KEY]),localDaily=parseObject(localData?.[DAILY_REVIEW_KEY]),combined={...cloudDaily};
     for (const date of new Set([...Object.keys(cloudDaily),...Object.keys(localDaily)])) {
       const a=cloudDaily[date]||{},b=localDaily[date]||{};
-      combined[date]={added:[...new Set([...(a.added||[]),...(b.added||[])].map(Number))],passed:[...new Set([...(a.passed||[]),...(b.passed||[])].map(Number))],scheduledPassed:[...new Set([...(a.scheduledPassed||[]),...(b.scheduledPassed||[])].map(Number))]};
+      combined[date]={added:[...new Set([...(a.added||[]),...(b.added||[])].map(Number))],passed:[...new Set([...(a.passed||[]),...(b.passed||[])].map(Number))]};
     }
     merged[DAILY_REVIEW_KEY]=JSON.stringify(combined);
   }
@@ -1484,8 +1495,7 @@ function mergeSnapshots(cloudData, localData) {
       const state=daily[date]||{};
       daily[date]={
         added:[...new Set((state.added||[]).map(Number).filter(no=>!!marked[no]))],
-        passed:[...new Set((state.passed||[]).map(Number).filter(no=>!!marked[no]))],
-        scheduledPassed:[] // 초기화 시 당일 복습 횟수도 함께 초기화
+        passed:[...new Set((state.passed||[]).map(Number).filter(no=>!!marked[no]))]
       };
     }
     merged[DAILY_REVIEW_KEY]=JSON.stringify(daily);

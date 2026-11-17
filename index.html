@@ -1443,7 +1443,7 @@ $login('notifySave').onclick = async () => {
     if (enabled) {
       if (window.IlbbangAndroid) {
         const linked = await registerNativeFcmTokenIfReady();
-        if (!linked) $login('notifyStatus').textContent = 'Android 알림 토큰을 기다리고 있어요. 앱을 다시 열거나 잠시 후 저장해 주세요.';
+        if (!linked) $login('notifyStatus').textContent = 'Android 앱에서 FCM 토큰을 아직 전달하지 않았어요. 이 문제는 HTML만으로 해결되지 않으며 MainActivity.kt의 Firebase 토큰 전달 연결이 필요합니다.';
       } else await registerPushDevice();
     }
     else $login('notifyStatus').textContent = '가족 알림을 껐어요. 기기 등록 정보는 유지되며 발송 대상에서 제외됩니다.';
@@ -1467,6 +1467,7 @@ DAY를 1일차로 되돌리고 학습·말하기·복습 기록을 지우려면 
     return;
   }
   const before = readLocalSnapshot();
+  const resetDayNo = currentDay();
   try {
     localStorage.setItem('ilbbangSeq600Records', '{}');
     localStorage.setItem('ilbbangSeq600Checked', '{}');
@@ -1477,6 +1478,40 @@ DAY를 1일차로 되돌리고 학습·말하기·복습 기록을 지우려면 
     localStorage.setItem(SPEAKING_PASS_KEY, '{}');
     localStorage.setItem(SPEAKING_ATTEMPT_KEY, '{}');
     localStorage.setItem('ilbbangSeq600Start', iso(today));
+
+    // 현재 화면에 남아 있는 말하기 통과 문구·인식 결과·녹음 재생 URL도 함께 비웁니다.
+    if (activeStream) { activeStream.getTracks().forEach(track => track.stop()); activeStream = null; }
+    if (activeRecorder && activeRecorder.state !== 'inactive') { try { activeRecorder.stop(); } catch (e) {} }
+    activeRecorder = null; activeRecognition = null; activeNo = null; activeSentence = null;
+    activeChunks = []; activeTranscript = ''; activeRecognitionError = '';
+    recorderEnded = true; recognitionEnded = true; finalizingRecording = false;
+    Object.keys(recordingResults).forEach(no => {
+      const result = recordingResults[no];
+      if (result?.audioUrl) URL.revokeObjectURL(result.audioUrl);
+      delete recordingResults[no];
+    });
+    // 녹음 DB 키는 날짜·DAY·문장 번호로 저장되므로 초기화 시 현재 학습 세션의 녹음도 제거합니다.
+    try {
+      const db = await recordingDb();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('audio', 'readwrite');
+        const store = tx.objectStore('audio');
+        const prefix = key(iso(today), resetDayNo) + '|';
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return;
+          if (String(cursor.value?.id || '').startsWith(prefix)) cursor.delete();
+          cursor.continue();
+        };
+        req.onerror = () => reject(req.error || new Error('녹음 기록 정리 실패'));
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error || new Error('녹음 기록 정리 실패'));
+        tx.onabort = () => reject(tx.error || new Error('녹음 기록 정리 중단'));
+      });
+      db.close();
+    } catch (audioCleanupError) { console.warn('초기화 중 녹음 파일 정리 실패', audioCleanupError); }
+
     $login('startDate').value = iso(today);
     await persistProfileState();
     lastCloudData = readLocalSnapshot();

@@ -283,14 +283,25 @@ function populateVoices(){
  availableVoices=window.speechSynthesis.getVoices().filter(isEnglishVoice);
 }
 function speakEnglish(text){
- if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요. 크롬에서 열어 주세요.');return;}
+ const cleanText=String(text||'').trim();if(!cleanText)return;
+ const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
+ // Android WebView에서는 브라우저 speechSynthesis 대신 기기 내장 TTS를 사용합니다.
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'){
+  try{window.IlbbangAndroid.speak(cleanText,rate);return;}
+  catch(error){console.warn('Android TTS 호출 실패, 브라우저 음성으로 전환합니다.',error);}
+ }
+ if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요.');return;}
  populateVoices();window.speechSynthesis.cancel();
- const utterance=new SpeechSynthesisUtterance(text);
- utterance.lang='en-US';
- utterance.rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
- utterance.pitch=0.92;
+ const utterance=new SpeechSynthesisUtterance(cleanText);
+ utterance.lang='en-US';utterance.rate=rate;utterance.pitch=0.92;
  const voice=preferredVoice();if(voice)utterance.voice=voice;
  window.speechSynthesis.speak(utterance);
+}
+function stopEnglishSpeech(){
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.stopSpeaking==='function'){
+  try{window.IlbbangAndroid.stopSpeaking();}catch(error){console.warn('Android TTS stop failed',error);}
+ }
+ if('speechSynthesis' in window)window.speechSynthesis.cancel();
 }
 // 문장 녹음 + 영어 음성인식 일치율 검사
 const SPEAKING_PASS_KEY='ilbbangSeq600SpeakingPass';

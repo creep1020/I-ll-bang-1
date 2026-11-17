@@ -131,9 +131,18 @@ if ('serviceWorker' in navigator) {
  <div class="reward-streak"><div class="small">연속 학습</div><div class="streak-number">🔥 <span id="streakCount">0</span>일</div><div class="small" id="streakNote">하루씩 꾸준히 이어가 봐요!</div></div>
 </div>
 <div class="badge-title">획득한 배지</div><div class="badge-list" id="badgeList"></div>
-<div class="badge-title">🎁 별 포인트 보상</div>
+<div class="badge-title">🎁 별 포인트 보상 교환소</div>
+<div class="small" style="margin:5px 0 9px">원하는 보상을 신청하면 부모님이 확인해 주세요. 승인된 보상은 별이 차감되고, 사용 내역에 남아요.</div>
 <div class="reward-options" id="rewardOptions"></div>
-<div class="small" id="rewardStatus" aria-live="polite" style="margin-top:9px">보상은 별을 모아 부모님과 함께 확인하고 받아요.</div>
+<div style="margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fbfaf7">
+ <strong style="font-size:14px">💡 내가 원하는 보상 신청</strong>
+ <input id="childRewardTitle" maxlength="50" placeholder="원하는 보상을 적어 주세요" style="width:100%;margin:8px 0">
+ <textarea id="childRewardReason" maxlength="180" rows="2" placeholder="왜 받고 싶은지, 어떤 보상인지 적어 주세요 (선택)" style="width:100%;margin:0 0 8px"></textarea>
+ <button type="button" id="childRewardSubmit" class="primary" style="width:100%">부모님께 보상 신청하기</button>
+</div>
+<div class="badge-title" style="margin-top:14px">📋 내 보상 신청·사용 내역</div>
+<div id="childRewardHistory" class="small">아직 신청한 보상이 없어요.</div>
+<div class="small" id="rewardStatus" aria-live="polite" style="margin-top:9px">보상 신청과 사용 내역은 이곳에서 확인할 수 있어요.</div>
 </section>
 <section class="panel" id="backupPanel">
 <strong style="font-size:14px">💾 학습 기록 백업 · 복원</strong>
@@ -207,17 +216,41 @@ function ensureReviewSchedules(){
 let reviewCurrentNo=null,reviewPassedInSession=0,reviewSessionTotal=0,reviewRecognition=null,reviewListening=false,reviewMode='scheduled',reviewFallbackNo=null,reviewFallbackMode=null;
 const reviewAttemptCounts=Object.create(null);
 const REWARD_KEY='ilbbangSeq600StarAwards',REDEEM_KEY='ilbbangSeq600RewardRequests';
+const REWARD_SHOP_KEY='ilbbangRewardShopData';
 const KEKE_PROGRESS_KEY='ilbbangKekeGrowthDays';
 let kekePreviewStage = null; // 부모 PIN 해제 중에만 사용하는 화면 미리보기 상태
-const REWARDS=[{id:'snack',cost:5,title:'작은 간식 고르기',desc:'좋아하는 간식 하나를 부모님과 골라요.'},{id:'play',cost:10,title:'가족 놀이 선택권',desc:'주말에 함께 할 놀이를 직접 골라요.'},{id:'outing',cost:20,title:'특별한 가족 활동',desc:'가고 싶은 곳이나 함께 할 활동을 정해요.'}];
+const DEFAULT_REWARDS=[
+ {id:'r_mala',cost:7,title:'마라탕 먹기',desc:'먹고 싶은 마라탕 먹기'},
+ {id:'r_youtube',cost:10,title:'유튜브 시청 30분',desc:'유튜브를 30분 더 볼 수 있어요'},
+ {id:'r_familyplay',cost:15,title:'가족놀이 선택권',desc:'주말 오후 3시간은 집에서 정한 놀이 하기'},
+ {id:'r_chicken',cost:20,title:'치킨 먹기',desc:'가족과 치킨 먹기'},
+ {id:'r_allowance10',cost:30,title:'용돈 10,000원',desc:'용돈 10,000원 받기'},
+ {id:'r_smallitem',cost:40,title:'갖고 싶은 작은 물건 고르기',desc:'15,000원 이내'},
+ {id:'r_allowance25',cost:60,title:'용돈 25,000원',desc:'용돈 25,000원 받기'},
+ {id:'r_family',cost:80,title:'특별 가족활동',desc:'가족이 함께 특별한 활동 하기'},
+ {id:'r_amusement',cost:100,title:'놀이동산 가기',desc:'가족과 놀이동산 가기'},
+ {id:'r_trip',cost:200,title:'국내여행',desc:'가족과 국내여행 가기'}
+];
+function rewardShopData(){
+ const saved=readMap(REWARD_SHOP_KEY);
+ if(!Array.isArray(saved.rewards)) saved.rewards=DEFAULT_REWARDS.map(x=>({...x}));
+ if(!saved.requests||typeof saved.requests!=='object')saved.requests={};
+ return saved;
+}
+function saveRewardShop(data){writeMap(REWARD_SHOP_KEY,data);if(window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(data).catch(e=>console.warn('공통 보상 저장 대기:',e));renderRewards();renderParentRewardShop();}
+let sharedRewardShopActive=false;
+window.ilbbangGetLocalRewardShop=()=>{const shop=rewardShopData();shop.earned={...(shop.earned||{})};if(!shop.resetAt)for(const k of Object.keys(starAwards()))shop.earned['book1-sequential|'+k]=true;return shop;};
+window.ilbbangOnSharedRewardShop=(data)=>{if(!data)return;sharedRewardShopActive=true;const local=rewardShopData();const merged={...data,rewards:Array.isArray(data.rewards)?data.rewards:local.rewards,requests:{...(local.requests||{}),...(data.requests||{})},earned:{...(data.earned||{})}};const missingLocalAwards=!merged.resetAt&&Object.keys(starAwards()).some(k=>!merged.earned['book1-sequential|'+k]);if(!merged.resetAt)for(const k of Object.keys(starAwards()))merged.earned['book1-sequential|'+k]=true;const missingLocalRequests=Object.keys(local.requests||{}).some(id=>!data.requests?.[id]);writeMap(REWARD_SHOP_KEY,merged);if((missingLocalAwards||missingLocalRequests||!Array.isArray(data.rewards))&&window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(merged).catch(e=>console.warn(e));renderRewards();renderParentRewardShop();};
+function shopRequests(){return rewardShopData().requests||{}}
+function rewardStatusLabel(status){return ({pending:'부모님 확인 대기',approved:'승인 · 사용 가능',used:'사용 완료',rejected:'거절됨',cancelled:'취소됨'})[status]||'상태 확인 중'}
 function studyDates(){return [...new Set(Object.keys(readRecords()).filter(k=>readRecords()[k]===true).map(k=>k.split('|')[0]))].sort();}
 function currentStreak(){const dates=new Set(studyDates());let d=new Date(today);if(!dates.has(iso(d))){d.setDate(d.getDate()-1);if(!dates.has(iso(d)))return 0;}let n=0;while(dates.has(iso(d))){n++;d.setDate(d.getDate()-1);}return n;}
 function bestStreak(){const ds=studyDates();let best=0,run=0,prev=null;for(const value of ds){const d=new Date(value+'T00:00:00');if(prev){const gap=(d-prev)/86400000;run=gap===1?run+1:1;}else run=1;best=Math.max(best,run);prev=d;}return best;}
 function starAwards(){return readMap(REWARD_KEY)}
-function redeemedRequests(){return readMap(REDEEM_KEY)}
-function availableStars(){const awards=starAwards(),spent=redeemedRequests();return Object.keys(awards).filter(k=>awards[k]).length-Object.values(spent).filter(x=>x&&x.status==='approved').reduce((a,x)=>a+(Number(x.cost)||0),0);}
+function redeemedRequests(){return shopRequests()}
+function availableStars(){const awards=starAwards(),shop=rewardShopData(),spent=shop.requests||{};const earned=sharedRewardShopActive?Object.values(shop.earned||{}).filter(Boolean).length:Object.keys(awards).filter(k=>awards[k]).length;return Math.max(0,earned-Object.values(spent).filter(x=>x&&(x.status==='approved'||x.status==='used')).reduce((a,x)=>a+(Number(x.cost)||0),0));}
 function kekeGrowthDays(){const saved=localStorage.getItem(KEKE_PROGRESS_KEY);if(saved!==null)return readMap(KEKE_PROGRESS_KEY);const initial={};studyDates().forEach(date=>initial[date]=true);writeMap(KEKE_PROGRESS_KEY,initial);return initial;}
-function awardToday(isNewCompletion=false){const k=key(iso(today),currentDay()),awards=starAwards();if(!awards[k]){awards[k]=true;writeMap(REWARD_KEY,awards);}if(isNewCompletion){const days=kekeGrowthDays();days[iso(today)]=true;writeMap(KEKE_PROGRESS_KEY,days);}}
+function awardToday(isNewCompletion=false){const k=key(iso(today),currentDay()),awards=starAwards();if(!awards[k]){awards[k]=true;writeMap(REWARD_KEY,awards);if(window.ilbbangRecordSharedStarAward)window.ilbbangRecordSharedStarAward('book1-sequential|'+k).catch(e=>console.warn('공통 별 적립 대기:',e));}if(isNewCompletion){const days=kekeGrowthDays();days[iso(today)]=true;writeMap(KEKE_PROGRESS_KEY,days);}}
 function renderKekeGrowth(){
  const completedDays=Object.keys(kekeGrowthDays()).length;
  const days=Math.min(30,completedDays);
@@ -255,7 +288,7 @@ document.addEventListener('click',e=>{
   kekePreviewStage=null;renderKekeGrowth();
  }
 });
-window.ilbbangOnParentSettingsChanged=()=>{if(typeof renderKekeGrowth==='function')renderKekeGrowth();};
+window.ilbbangOnParentSettingsChanged=()=>{if(typeof renderKekeGrowth==='function')renderKekeGrowth();if(typeof renderParentRewardShop==='function')renderParentRewardShop();};
 function renderRewards(){
  const streak=currentStreak(),best=bestStreak(),balance=Math.max(0,availableStars());
  renderKekeGrowth();
@@ -264,11 +297,22 @@ function renderRewards(){
  $('streakNote').textContent=streak>=7?'대단해요! 7일 연속 학습을 달성했어요.':streak>0?`다음 7일 배지까지 ${7-streak}일 남았어요.`:'오늘 공부를 시작해 연속 기록을 만들어 봐요!';
  const milestones=[{n:1,label:'첫걸음 배지 🐣'},{n:3,label:'3일 꾸준 배지 🌱'},{n:7,label:'일주일 배지 🏅'},{n:14,label:'2주 도전 배지 🏆'},{n:30,label:'30일 완주 배지 👑'}];
  $('badgeList').innerHTML=milestones.map(b=>`<span class="${best>=b.n?'earned-badge':'locked-badge'}">${best>=b.n?'✓ ':'🔒 '}${b.label}</span>`).join('');
- const requests=redeemedRequests();
- $('rewardOptions').innerHTML=REWARDS.map(r=>{const pending=Object.values(requests).some(x=>x&&x.rewardId===r.id&&x.status==='pending');return `<div class="reward-option"><div class="reward-desc"><strong>${r.title}</strong><br><span class="small">${r.desc} · ${r.cost}⭐</span></div><button data-reward="${r.id}" ${balance<r.cost||pending?'disabled':''}>${pending?'요청 대기 중':'보상 요청'}</button></div>`}).join('');
- const pending=Object.values(requests).filter(x=>x&&x.status==='pending');
- $('rewardStatus').innerHTML=pending.length?`부모님이 실제 보상을 준 뒤 아래 버튼을 눌러 확인해 주세요.<br>${pending.map(x=>`<button class="approve-reward" data-approve="${Object.keys(requests).find(k=>requests[k]===x)}">${x.title} · ${x.cost}⭐ 부모님 확인</button>`).join(' ')}`:'보상은 별을 모아 부모님과 함께 확인하고 받아요. 별은 부모님 확인 후 차감돼요.';
+ const shop=rewardShopData(),requests=shop.requests||{};
+ $('rewardOptions').innerHTML=shop.rewards.map(r=>{const pending=Object.values(requests).some(x=>x&&x.rewardId===r.id&&x.status==='pending');return `<div class="reward-option"><div class="reward-desc"><strong>${escapeHtml(r.title)}</strong><br><span class="small">${escapeHtml(r.desc||'')} · ${r.cost}⭐</span></div><button data-reward="${escapeHtml(r.id)}" ${balance<Number(r.cost)||pending?'disabled':''}>${pending?'요청 대기 중':'보상 신청'}</button></div>`}).join('')||'<div class="small">등록된 보상이 없어요.</div>';
+ const rows=Object.entries(requests).sort((a,b)=>(b[1].requestedAt||'').localeCompare(a[1].requestedAt||''));
+ $('childRewardHistory').innerHTML=rows.length?rows.map(([id,x])=>`<div class="reward-option" style="margin:6px 0"><div class="reward-desc"><strong>${escapeHtml(x.title||'보상')}</strong><br><span class="small">${Number(x.cost)||0}⭐ · ${rewardStatusLabel(x.status)}${x.reason?' · '+escapeHtml(x.reason):''}</span></div>${x.status==='approved'?`<button data-child-used="${escapeHtml(id)}">사용 완료</button>`:''}</div>`).join(''):'아직 신청한 보상이 없어요.';
+ $('rewardStatus').textContent='보상 신청 후 부모님 승인 여부와 사용 내역을 여기에서 확인할 수 있어요.';
 }
+function renderParentRewardShop(){
+ const catalog=$('parentRewardCatalog'),requestsEl=$('parentRewardRequests');
+ if(!catalog||!requestsEl)return;
+ if(window.ilbbangIsParentSettingsUnlocked?.()!==true){catalog.innerHTML='<div class="small">부모 PIN을 해제하면 보상 항목과 신청 내역을 관리할 수 있어요.</div>';requestsEl.innerHTML='부모 PIN 잠금 해제가 필요합니다.';return;}
+ const shop=rewardShopData();
+ catalog.innerHTML=shop.rewards.map(r=>`<div class="reward-option" style="margin:6px 0;align-items:flex-start"><div class="reward-desc" style="flex:1"><input data-edit-title="${escapeHtml(r.id)}" value="${escapeHtml(r.title)}" maxlength="50" style="width:100%;margin-bottom:4px"><input data-edit-cost="${escapeHtml(r.id)}" type="number" min="1" max="420" value="${Number(r.cost)||1}" style="width:100%;margin-bottom:4px"><input data-edit-desc="${escapeHtml(r.id)}" value="${escapeHtml(r.desc||'')}" maxlength="100" placeholder="설명" style="width:100%"></div><button data-save-reward="${escapeHtml(r.id)}">저장</button><button data-delete-reward="${escapeHtml(r.id)}">삭제</button></div>`).join('');
+ const rows=Object.entries(shop.requests||{}).sort((a,b)=>(b[1].requestedAt||'').localeCompare(a[1].requestedAt||''));
+ requestsEl.innerHTML=rows.length?rows.map(([id,x])=>`<div class="reward-option" style="margin:6px 0;align-items:flex-start"><div class="reward-desc" style="flex:1"><strong>${escapeHtml(x.title||'보상')}</strong><br><span class="small">신청 별 ${Number(x.cost)||0}⭐ · ${rewardStatusLabel(x.status)}</span>${x.reason?`<br><span class="small">${escapeHtml(x.reason)}</span>`:''}${x.status==='pending'?`<input data-approve-cost="${escapeHtml(id)}" type="number" min="1" max="420" value="${Number(x.cost)||1}" style="width:100%;margin-top:6px">`:''}</div>${x.status==='pending'?`<div style="display:flex;flex-direction:column;gap:5px"><button data-parent-approve="${escapeHtml(id)}">승인</button><button data-parent-reject="${escapeHtml(id)}">거절</button></div>`:''}${x.status==='approved'?`<div style="display:flex;flex-direction:column;gap:5px"><button data-parent-used="${escapeHtml(id)}">사용 완료</button><button data-parent-cancel="${escapeHtml(id)}">승인 취소·별 복구</button></div>`:''}</div>`).join(''):'신청 내역이 없어요.';
+}
+
 
 // 무료 기기 내장 TTS 사용. 영어(미국) 음성 중 남성으로 추정되는 음성을 자동 우선 선택.
 let availableVoices=[];
@@ -285,10 +329,16 @@ function populateVoices(){
 function speakEnglish(text){
  const cleanText=String(text||'').trim();if(!cleanText)return;
  const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
- // Android WebView에서는 브라우저 speechSynthesis 대신 기기 내장 TTS를 사용합니다.
- if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'){
-  try{window.IlbbangAndroid.speak(cleanText,rate);return;}
-  catch(error){console.warn('Android TTS 호출 실패, 브라우저 음성으로 전환합니다.',error);}
+ // Android TTS가 영어 음성을 실제로 지원할 때만 네이티브 엔진을 사용합니다.
+ // 초기화 전이거나 영어 음성 데이터가 없으면 브라우저 음성으로 대체합니다.
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'&&
+    typeof window.IlbbangAndroid.canSpeakEnglish==='function'){
+  try{
+   if(window.IlbbangAndroid.canSpeakEnglish()){
+    window.IlbbangAndroid.speak(cleanText,rate);
+    return;
+   }
+  }catch(error){console.warn('Android TTS 사용 불가, 브라우저 음성으로 전환합니다.',error);}
  }
  if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요.');return;}
  populateVoices();window.speechSynthesis.cancel();
@@ -689,6 +739,15 @@ function render(){
  }).join('');
  // Android WebView에서 부모 요소의 위임 클릭이 누락되는 경우를 피하도록
  // 녹음 버튼 자체에 직접 클릭 동작을 연결합니다.
+ $('sentenceList').querySelectorAll('button[data-speak]').forEach(speakButton=>{
+  speakButton.onclick=e=>{
+   e.preventDefault();
+   e.stopPropagation();
+   const no=Number(speakButton.getAttribute('data-speak'));
+   const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);
+   if(item)speakEnglish(item.en);
+  };
+ });
  $('sentenceList').querySelectorAll('button[data-record]').forEach(recordButton=>{
   recordButton.onclick=e=>{
    e.preventDefault();
@@ -887,7 +946,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -897,7 +956,7 @@ $('importBackup').onclick=()=>$('backupFile').click();
 $('backupFile').onchange=async e=>{
  const file=e.target.files&&e.target.files[0];if(!file)return;
  try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
-  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
+  const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
   for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
@@ -911,12 +970,61 @@ $('backupFile').onchange=async e=>{
 };
 
 $('rewardOptions').addEventListener('click',e=>{
- const btn=e.target.closest('[data-reward]');if(!btn)return;const reward=REWARDS.find(r=>r.id===btn.dataset.reward);if(!reward)return;
- if(availableStars()<reward.cost){$('rewardStatus').textContent='별 포인트가 조금 더 필요해요.';return;}
- const requests=redeemedRequests(),id=reward.id+'_'+Date.now();requests[id]={rewardId:reward.id,title:reward.title,cost:reward.cost,status:'pending',requestedAt:new Date().toISOString()};writeMap(REDEEM_KEY,requests);renderRewards();
- $('rewardStatus').textContent=`${reward.title} 보상을 요청했어요! 부모님께 이 화면을 보여드리고 확인받아 주세요.`;
+ const btn=e.target.closest('[data-reward]');if(!btn)return;
+ const shop=rewardShopData(),reward=shop.rewards.find(r=>r.id===btn.dataset.reward);if(!reward)return;
+ if(availableStars()<Number(reward.cost)){ $('rewardStatus').textContent='별 포인트가 조금 더 필요해요.';return; }
+ if(Object.values(shop.requests).some(x=>x&&x.rewardId===reward.id&&x.status==='pending'))return;
+ const id='req_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+ shop.requests[id]={rewardId:reward.id,title:reward.title,cost:Number(reward.cost),reason:'',status:'pending',requestedAt:new Date().toISOString(),source:'catalog'};
+ saveRewardShop(shop);$('rewardStatus').textContent='보상을 신청했어요. 부모님이 승인하면 별이 차감돼요.';
 });
-$('rewardStatus').addEventListener('click',e=>{const btn=e.target.closest('[data-approve]');if(!btn)return;const requests=redeemedRequests(),item=requests[btn.dataset.approve];if(!item||item.status!=='pending')return;if(!confirm('부모님이 실제 보상을 제공했나요? 확인하면 별 포인트가 차감됩니다.'))return;item.status='approved';item.approvedAt=new Date().toISOString();writeMap(REDEEM_KEY,requests);renderRewards();});
+$('childRewardSubmit').addEventListener('click',()=>{
+ const title=$('childRewardTitle').value.trim(),reason=$('childRewardReason').value.trim();
+ if(!title){$('rewardStatus').textContent='원하는 보상 이름을 먼저 적어 주세요.';return;}
+ const shop=rewardShopData(),id='custom_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+ shop.requests[id]={rewardId:id,title,cost:0,reason,status:'pending',requestedAt:new Date().toISOString(),source:'child'};
+ saveRewardShop(shop);$('childRewardTitle').value='';$('childRewardReason').value='';$('rewardStatus').textContent='보상을 신청했어요. 부모님이 별 개수를 정하고 승인해 주실 거예요.';
+});
+$('childRewardHistory').addEventListener('click',e=>{
+ const btn=e.target.closest('[data-child-used]');if(!btn)return;const shop=rewardShopData(),item=shop.requests[btn.dataset.childUsed];
+ if(!item||item.status!=='approved')return;
+ if(!confirm('이 보상을 실제로 사용했나요? 사용 완료로 기록할까요?'))return;
+ item.status='used';item.usedAt=new Date().toISOString();saveRewardShop(shop);
+});
+$('parentRewardCatalog').addEventListener('click',e=>{
+ const save=e.target.closest('[data-save-reward]'),del=e.target.closest('[data-delete-reward]');if(!save&&!del)return;
+ if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
+ const shop=rewardShopData();
+ if(del){const id=del.dataset.deleteReward;if(Object.values(shop.requests).some(x=>x&&x.rewardId===id&&['pending','approved'].includes(x.status))){$('parentRewardStatus').textContent='신청 또는 사용 대기 중인 보상이 있어 삭제할 수 없어요.';return;}shop.rewards=shop.rewards.filter(x=>x.id!==id);saveRewardShop(shop);return;}
+ const id=save.dataset.saveReward,r=shop.rewards.find(x=>x.id===id);if(!r)return;
+ const title=$('parentRewardCatalog').querySelector(`[data-edit-title="${CSS.escape(id)}"]`)?.value.trim();
+ const cost=Number($('parentRewardCatalog').querySelector(`[data-edit-cost="${CSS.escape(id)}"]`)?.value);
+ const desc=$('parentRewardCatalog').querySelector(`[data-edit-desc="${CSS.escape(id)}"]`)?.value.trim()||'';
+ if(!title||!Number.isInteger(cost)||cost<1||cost>420){$('parentRewardStatus').textContent='보상 이름과 별 개수(1~420)를 확인해 주세요.';return;}
+ Object.assign(r,{title,cost,desc});saveRewardShop(shop);$('parentRewardStatus').textContent='보상 항목을 저장했어요.';
+});
+$('parentRewardAdd').addEventListener('click',()=>{
+ if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
+ const title=$('parentRewardNewTitle').value.trim(),cost=Number($('parentRewardNewCost').value),desc=$('parentRewardNewDesc').value.trim();
+ if(!title||!Number.isInteger(cost)||cost<1||cost>420){$('parentRewardStatus').textContent='보상 이름과 별 개수(1~420)를 입력해 주세요.';return;}
+ const shop=rewardShopData();shop.rewards.push({id:'custom_reward_'+Date.now(),title,cost,desc});saveRewardShop(shop);
+ $('parentRewardNewTitle').value='';$('parentRewardNewCost').value='';$('parentRewardNewDesc').value='';$('parentRewardStatus').textContent='새 보상을 추가했어요.';
+});
+$('parentRewardRequests').addEventListener('click',e=>{
+ if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
+ const approve=e.target.closest('[data-parent-approve]'),reject=e.target.closest('[data-parent-reject]'),used=e.target.closest('[data-parent-used]'),cancel=e.target.closest('[data-parent-cancel]');
+ const btn=approve||reject||used||cancel;if(!btn)return;
+ const shop=rewardShopData(),id=btn.dataset.parentApprove||btn.dataset.parentReject||btn.dataset.parentUsed||btn.dataset.parentCancel,item=shop.requests[id];if(!item)return;
+ if(approve&&item.status==='pending'){
+  const input=$('parentRewardRequests').querySelector(`[data-approve-cost="${CSS.escape(id)}"]`),cost=Number(input?.value);
+  if(!Number.isInteger(cost)||cost<1||cost>420){$('parentRewardStatus').textContent='별 개수는 1~420 사이로 입력해 주세요.';return;}
+  if(availableStars()<cost){$('parentRewardStatus').textContent='아이의 별이 부족해 승인할 수 없어요.';return;}
+  item.cost=cost;item.status='approved';item.approvedAt=new Date().toISOString();
+ } else if(reject&&item.status==='pending') {item.status='rejected';item.rejectedAt=new Date().toISOString();}
+ else if(used&&item.status==='approved') {item.status='used';item.usedAt=new Date().toISOString();}
+ else if(cancel&&item.status==='approved') {if(!confirm('승인을 취소하고 차감된 별을 복구할까요?'))return;item.status='cancelled';item.cancelledAt=new Date().toISOString();}
+ saveRewardShop(shop);
+});
 $('sentenceList').addEventListener('click',e=>{
  const recordBtn=e.target.closest('[data-record]');
  if(recordBtn){
@@ -936,6 +1044,8 @@ $('sentenceList').addEventListener('click',e=>{
  writeMap('ilbbangSeq600Review',m);writeMap(REVIEW_SCHEDULE_KEY,schedule);render();
 });
 window.ilbbangRenderAfterCloudSync = render;
+// 문장 목록은 녹음 파일 복원과 관계없이 앱 진입 즉시 표시합니다.
+render();
 loadSavedRecordings().finally(()=>render());
 
 // 음성 목록은 브라우저가 비동기로 제공할 수 있어 준비 완료 이벤트도 처리
@@ -1045,7 +1155,7 @@ async function registerPushDevice() {
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
   'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, REVIEW_RESET_KEY, 'ilbbangSeqVoiceRate',
-  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays',
+  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangRewardShopData', 'ilbbangKekeGrowthDays',
   SPEAKING_PASS_KEY, SPEAKING_ATTEMPT_KEY
 ];
 let syncReady = false;
@@ -1110,7 +1220,7 @@ panel.innerHTML = `
         <button id="linkSharedProfile" type="button" class="primary">현재 프로필 연결</button>
         <button id="unlinkSharedProfile" type="button">연결 해제</button>
       </div>
-      <div class="small" id="sharedProfileStatus" style="margin-top:7px" aria-live="polite">아직 별과 아이템은 공유하지 않습니다. 먼저 프로필 연결만 설정합니다.</div>
+      <div class="small" id="sharedProfileStatus" style="margin-top:7px" aria-live="polite">공통 프로필 연결은 14개 앱의 별·보상 공유를 위한 연결 단계입니다.</div>
     </div>
           </section>
           <div class="keke-preview-tools">
@@ -1140,6 +1250,23 @@ panel.innerHTML = `
             <button id="resetKekeGrowth" type="button" style="border-color:#9b80ca;color:#7252a6;width:100%">뭉이 성장 초기화</button>
             <div class="small" id="resetKekeStatus" style="margin-top:8px" aria-live="polite"></div>
           </div>
+          <section id="parentRewardShop" style="margin:0 0 16px;padding:12px;border:1px solid #e2c77d;border-radius:12px;background:#fffdf5">
+            <strong style="font-size:15px">🎁 보상 교환소 관리</strong>
+            <div class="small" style="margin:6px 0 10px">보상 항목과 별 개수를 수정하고, 아이의 보상 신청을 승인하거나 거절할 수 있어요. 승인하면 별이 차감됩니다.</div>
+            <div id="parentRewardCatalog"></div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid #eadfbf">
+              <strong style="font-size:13px">보상 추가</strong>
+              <input id="parentRewardNewTitle" maxlength="50" placeholder="보상 이름" style="width:100%;margin:6px 0">
+              <input id="parentRewardNewCost" type="number" min="1" max="420" placeholder="필요한 별 개수" style="width:100%;margin:0 0 6px">
+              <input id="parentRewardNewDesc" maxlength="100" placeholder="설명 (선택)" style="width:100%;margin:0 0 7px">
+              <button id="parentRewardAdd" type="button" class="primary" style="width:100%">보상 항목 추가</button>
+            </div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid #eadfbf">
+              <strong style="font-size:13px">아이의 보상 신청 관리</strong>
+              <div id="parentRewardRequests" class="small" style="margin-top:7px">신청 내역이 없어요.</div>
+            </div>
+            <div id="parentRewardStatus" class="small" aria-live="polite" style="margin-top:8px"></div>
+          </section>
           <label style="display:flex;gap:8px;align-items:center"><input id="notifyEnabled" type="checkbox"> 가족 알림 켜기</label>
           <label for="notifyTime" style="display:block;margin-top:10px">알림 시간</label>
           <input id="notifyTime" type="time" value="19:00" style="width:100%;margin:5px 0 8px">
@@ -1198,7 +1325,7 @@ function renderSharedProfileControls() {
   if (linkedId && sharedProfiles[linkedId]) {
     select.value = linkedId;
     current.textContent = `현재 1권 프로필 '${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'}' → 공통 프로필 '${sharedProfiles[linkedId].name}' 연결됨`;
-    statusEl.textContent = '프로필 연결 완료. 아직 별·뭉이 아이템 공유 기능은 적용되지 않았습니다.';
+    statusEl.textContent = '프로필 연결 완료. 별과 보상 신청·사용 내역이 공통 프로필에 저장됩니다.';
   } else if (linkedId) {
     current.textContent = '현재 연결된 공통 프로필을 찾을 수 없습니다. 연결 상태를 확인해 주세요.';
     statusEl.textContent = '기존 연결 정보가 남아 있어요. 새 프로필로 덮어쓰기 전에 확인해 주세요.';
@@ -1218,10 +1345,25 @@ function watchSharedProfiles() {
     sharedProfiles = data.profiles && typeof data.profiles === 'object' ? data.profiles : {};
     sharedAppLinks = data.appLinks && typeof data.appLinks === 'object' ? data.appLinks : {};
     renderSharedProfileControls();
+    const linkedRewardProfile = sharedAppLinks[sharedProfileLinkKey()];
+    if (linkedRewardProfile && data.rewardShop && data.rewardShop[linkedRewardProfile]) window.ilbbangOnSharedRewardShop?.(data.rewardShop[linkedRewardProfile]);
+    else if (linkedRewardProfile) window.ilbbangSaveSharedRewardShop?.(window.ilbbangGetLocalRewardShop?.() || {}).catch(err => console.warn('공통 보상 초기화 대기:', err));
   }, error => {
     $login('sharedProfileStatus').textContent = '공통 프로필을 불러오지 못했어요: ' + (error.code || error.message);
   });
 }
+// 공통 프로필별 보상 교환소·별 지갑: 각 앱이 같은 rewardShop 필드를 사용합니다.
+window.ilbbangSaveSharedRewardShop = async function(localShop) {
+ const linkedId=sharedAppLinks[sharedProfileLinkKey()];if(!currentUid||!syncReady||!linkedId||!localShop)return false;
+ const ref=doc(db,'ilbbangShared',currentUid);
+ await runTransaction(db,async transaction=>{const snap=await transaction.get(ref);const data=snap.exists()?snap.data():{};const all=data.rewardShop&&typeof data.rewardShop==='object'?{...data.rewardShop}:{};const remote=all[linkedId]&&typeof all[linkedId]==='object'?all[linkedId]:{};all[linkedId]={...remote,...localShop,rewards:Array.isArray(localShop.rewards)?localShop.rewards:(remote.rewards||[]),requests:{...(remote.requests||{}),...(localShop.requests||{})},earned:localShop.resetAt && Number(localShop.resetAt)>Number(remote.resetAt||0)?{...(localShop.earned||{})}:{...(remote.earned||{}),...(localShop.earned||{})},resetAt:Math.max(Number(remote.resetAt||0),Number(localShop.resetAt||0))};transaction.set(ref,{rewardShop:all,updatedAt:serverTimestamp()},{merge:true});});return true;
+};
+window.ilbbangRecordSharedStarAward = async function(awardId) {
+ const linkedId=sharedAppLinks[sharedProfileLinkKey()];if(!currentUid||!syncReady||!linkedId||!awardId)return false;
+ const ref=doc(db,'ilbbangShared',currentUid);
+ await runTransaction(db,async transaction=>{const snap=await transaction.get(ref);const data=snap.exists()?snap.data():{};const all=data.rewardShop&&typeof data.rewardShop==='object'?{...data.rewardShop}:{};const shop=all[linkedId]&&typeof all[linkedId]==='object'?{...all[linkedId]}:{};shop.rewards=Array.isArray(shop.rewards)?shop.rewards:[];shop.requests=shop.requests&&typeof shop.requests==='object'?shop.requests:{};shop.earned={...(shop.earned||{}),[awardId]:true};all[linkedId]=shop;transaction.set(ref,{rewardShop:all,updatedAt:serverTimestamp()},{merge:true});});return true;
+};
+
 async function createAndLinkSharedProfile() {
   if (!syncReady || !currentUid) return;
   const localName = profiles.find(p=>p.id===activeProfileId)?.name || '현재 프로필';
@@ -1393,6 +1535,7 @@ function showParentPinState() {
   $login('parentSettingsArea').style.display = parentSettingsUnlocked ? 'block' : 'none';
   $login('parentPinHint').textContent = !hasPin ? '처음 한 번 부모 PIN 4자리를 만들어 주세요.' : (parentSettingsUnlocked ? '잠금이 해제됐어요. 설정을 바꿀 수 있습니다.' : '알림 설정을 바꾸려면 부모 PIN이 필요합니다.');
   if (parentSettingsUnlocked) {
+    if (typeof window.ilbbangOnParentSettingsChanged === 'function') window.ilbbangOnParentSettingsChanged();
     $login('notifyEnabled').checked = !!parentNotifySettings.enabled;
     $login('notifyTime').value = parentNotifySettings.time || '19:00';
     $login('notifySound').checked = parentNotifySettings.sound !== false;
@@ -1554,8 +1697,9 @@ async function confirmRewardReset(kind, statusId) {
       writeMap(REWARD_KEY, {});
       const requests = redeemedRequests();
       const pending = Object.fromEntries(Object.entries(requests).filter(([, item]) => item && item.status === 'pending'));
-      writeMap(REDEEM_KEY, pending);
-      output.textContent = '별 포인트를 0개로 초기화했어요. 뭉이와 학습 기록은 그대로예요.';
+      const shop = rewardShopData(); shop.requests = pending; shop.earned = {}; shop.resetAt = Date.now(); saveRewardShop(shop);
+      writeMap(REDEEM_KEY, {});
+      output.textContent = '별 포인트를 0개로 초기화했어요. 보상 항목과 뭉이·학습 기록은 그대로예요.';
     } else {
       writeMap(KEKE_PROGRESS_KEY, {});
       output.textContent = '뭉이를 1일 차 아기 모습으로 초기화했어요. 다음 새 학습 완료부터 다시 성장해요.';

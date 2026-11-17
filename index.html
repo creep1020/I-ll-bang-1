@@ -114,7 +114,7 @@ if ('serviceWorker' in navigator) {
 <section class="panel" id="sentenceStudyPanel"><div class="small" style="margin-bottom:10px">🎙 기존 녹음은 내 목소리 확인용이에요. 복습 통과는 별도의 영어 음성 인식으로 확인합니다.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
 <section class="panel" id="studyActionsPanel">
 <div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
-<div class="status" id="studyStatus">학습을 마친 뒤 완료 버튼을 눌러 기록하세요.</div><div id="bonusGameWrap" style="display:none;margin-top:10px"><button class="primary" id="bonusGameBtn" style="width:100%">🎁 보너스 미니게임 1분 도전하기</button><div class="small" style="text-align:center;margin-top:5px">오늘 학습을 완료한 보너스 게임이에요!</div></div>
+<div class="status" id="studyStatus">학습을 마친 뒤 완료 버튼을 눌러 기록하세요.</div><div id="bonusGameWrap" style="display:none;margin-top:10px"><button class="primary" id="bonusGameBtn" style="width:100%">🎁 보너스 미니게임 1분 도전하기</button><div class="small" id="bonusGameHint" style="text-align:center;margin-top:5px">오늘의 20문장 학습을 완료하면 1분 보너스 게임이 열려요.</div></div>
 </section>
 <section class="panel" id="rewardPanel">
 <strong style="font-size:14px">⭐ 나의 학습 보상</strong>
@@ -183,6 +183,7 @@ function readMap(name){try{return JSON.parse(localStorage.getItem(name)||'{}')}c
 function writeMap(name,obj){localStorage.setItem(name,JSON.stringify(obj))}
 const REVIEW_SCHEDULE_KEY='ilbbangSeq600ReviewSchedule';
 const DAILY_REVIEW_KEY='ilbbangSeq600DailyReview';
+const REVIEW_RESET_KEY='ilbbangSeq600ReviewResetAt';
 const REVIEW_INTERVALS=[1,3,7,14,30];
 function addDaysISO(dateString,days){const d=new Date((dateString||iso(today))+'T12:00:00');d.setDate(d.getDate()+days);return iso(d);}
 function reviewSchedule(){return readMap(REVIEW_SCHEDULE_KEY)}
@@ -319,7 +320,20 @@ async function saveRecordingBlob(no,blob,html){
   tx.onabort=()=>finish(tx.error||new Error('녹음 저장이 중단됐어요.'));
  });
 }
+async function loadSavedRecordings(){try{const db=await recordingDb();const rows=await new Promise((resolve,reject)=>{const tx=db.transaction('audio','readonly'),store=tx.objectStore('audio'),out=[];const req=store.openCursor();req.onsuccess=()=>{const c=req.result;if(!c){resolve(out);return;}out.push(c.value);c.continue();};req.onerror=()=>reject(req.error);});db.close();const prefix=key(iso(today),currentDay())+'|';for(const row of rows){if(!String(row.id).startsWith(prefix))continue;const no=Number(String(row.id).split('|').pop());if(!Number.isFinite(no)||!row.blob||!row.blob.size)continue;const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)continue;const old=recordingResults[no]?.audioUrl;if(old)URL.revokeObjectURL(old);recordingResults[no]={html:row.html||'녹음이 저장되어 있어요.',audioUrl:URL.createObjectURL(row.blob)};}}catch(e){console.warn('저장된 녹음 복구 실패',e);}}
+function speakingPasses(){return readMap(SPEAKING_PASS_KEY)}
 function speakingKey(no){return key(iso(today),currentDay())+'|'+no}
+function speakingAttempts(){return readMap(SPEAKING_ATTEMPT_KEY)}
+function autoAddFailedSpeakingToReview(no){
+ const marked=readMap('ilbbangSeq600Review');marked[no]=true;writeMap('ilbbangSeq600Review',marked);
+ const schedule=reviewSchedule();
+ if(!schedule[no])schedule[no]={stage:0,dueDate:addDaysISO(iso(today),1),addedAt:iso(today),addedAtTime:new Date().toISOString(),attempts:0};
+ writeMap(REVIEW_SCHEDULE_KEY,schedule);
+ const all=dailyReviewData(),state=all[iso(today)]||{added:[],passed:[]};
+ state.added=[...new Set([...(state.added||[]).map(Number),Number(no)])];
+ state.passed=(state.passed||[]).filter(x=>Number(x)!==Number(no));
+ all[iso(today)]=state;writeMap(DAILY_REVIEW_KEY,all);
+}
 function normalizeWords(value){return String(value||'').toLowerCase().replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(Boolean)}
 function speakingMatch(expected,spoken){
  const a=normalizeWords(expected),b=normalizeWords(spoken);
@@ -691,7 +705,10 @@ function render(){
  $('markDone').disabled=previewDay!==null||done||!allSentencesDone||!allSpeakingPassed||reviewLocked;
  $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':!allSentencesDone?'문장 학습을 모두 완료해 주세요':!allSpeakingPassed?'모든 문장의 녹음 통과가 필요해요':'✓ 오늘 학습 완료';
  $('undoDone').disabled=previewDay!==null||!done;
- $('bonusGameWrap').style.display=(previewDay===null&&done)?'block':'none';
+ $('bonusGameWrap').style.display='block';
+ $('bonusGameBtn').disabled=previewDay!==null||!done;
+ $('bonusGameBtn').textContent=done?'🎁 보너스 미니게임 1분 도전하기':'🔒 오늘 학습 완료 후 보너스 게임 열기';
+ $('bonusGameHint').textContent=done?'오늘 학습을 완료했어요! 1분 보너스 게임을 할 수 있어요.':'오늘의 20문장 학습을 완료하면 1분 보너스 게임이 열려요.';
  $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개를 먼저 통과해야 새 학습을 시작할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone&&!allSpeakingPassed?`문장 학습은 체크했어요. 녹음 통과 ${data.items.filter(x=>speaking[speakingKey(x.no)]?.passed).length}/${data.items.length}개가 필요해요.`:allSentencesDone?'모든 문장을 학습하고 녹음도 통과했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
  renderCalendar();
  if(previewDay===null&&readRecords()[key(iso(today),currentDay())])awardToday();
@@ -717,7 +734,6 @@ function renderReviewGate(items,mode='scheduled'){
  $('reviewAnswer').textContent=showingAnswer?item.en:'';
  $('reviewRevealBtn').style.display=showingAnswer?'block':'none';
 }
-
 
 function normalizeSpokenSentence(value){return String(value||'').toLowerCase().replace(/[’‘]/g,"'").replace(/[^a-z0-9']/g,' ').replace(/\s+/g,' ').trim();}
 function handleReviewFailure(item,mode,message){
@@ -860,7 +876,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
+const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
 $('exportBackup').onclick=()=>{
  try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
@@ -954,6 +970,32 @@ function getStableDeviceId() {
   }
   return id;
 }
+// Android WebView 네이티브 FCM 토큰을 로그인된 가족 계정에 등록합니다.
+async function registerNativeFcmTokenIfReady() {
+  if (!pendingNativeFcmToken || !currentUid || !syncReady) return false;
+  const profile = profiles.find(p => p.id === activeProfileId);
+  const deviceRef = doc(db, 'ilbbangUsers', currentUid, 'privateSettings', getStableDeviceId());
+  await setDoc(deviceRef, {
+    token: pendingNativeFcmToken,
+    profileId: activeProfileId,
+    profileName: profile?.name || '가족',
+    updatedAt: serverTimestamp(),
+    platform: 'android'
+  }, { merge: true });
+  const out = $login('notifyStatus');
+  if (out) out.textContent = '이 Android 앱의 푸시 연결이 완료됐어요.';
+  return true;
+}
+window.onIlbbangNativeFcmToken = token => {
+  if (typeof token !== 'string' || !token.trim()) return;
+  pendingNativeFcmToken = token.trim();
+  registerNativeFcmTokenIfReady().catch(error => {
+    console.error('Android FCM token registration failed:', error);
+    const out = $login('notifyStatus');
+    if (out) out.textContent = 'Android 푸시 기기 등록 실패: ' + (error.code || error.message || '알 수 없는 오류');
+  });
+};
+
 async function registerPushDevice() {
   const out = $login('notifyStatus');
   if (!currentUid || !syncReady) { out.textContent = '공용 계정 로그인이 완료된 뒤 다시 저장해 주세요.'; return false; }
@@ -989,39 +1031,11 @@ async function registerPushDevice() {
     return false;
   }
 }
-
-// Android WebView의 네이티브 FCM 토큰을 로그인된 가족 계정에 등록합니다.
-// 기존 웹 푸시와 같은 문서 경로/필드 구조를 사용하고 platform만 android로 구분합니다.
-async function registerNativeFcmTokenIfReady() {
-  if (!pendingNativeFcmToken || !currentUid || !syncReady) return false;
-  const profile = profiles.find(p => p.id === activeProfileId);
-  const deviceRef = doc(db, 'ilbbangUsers', currentUid, 'privateSettings', getStableDeviceId());
-  await setDoc(deviceRef, {
-    token: pendingNativeFcmToken,
-    profileId: activeProfileId,
-    profileName: profile?.name || '가족',
-    updatedAt: serverTimestamp(),
-    platform: 'android'
-  }, { merge: true });
-  const out = $login('notifyStatus');
-  if (out) out.textContent = '이 Android 앱의 푸시 연결이 완료됐어요.';
-  return true;
-}
-
-window.onIlbbangNativeFcmToken = token => {
-  if (typeof token !== 'string' || !token.trim()) return;
-  pendingNativeFcmToken = token.trim();
-  registerNativeFcmTokenIfReady().catch(error => {
-    console.error('Android FCM token registration failed:', error);
-    const out = $login('notifyStatus');
-    if (out) out.textContent = 'Android 푸시 기기 등록 실패: ' + (error.code || error.message || '알 수 없는 오류');
-  });
-};
-
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
-  'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, 'ilbbangSeqVoiceRate',
-  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays', SPEAKING_PASS_KEY, SPEAKING_ATTEMPT_KEY
+  'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, REVIEW_RESET_KEY, 'ilbbangSeqVoiceRate',
+  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangKekeGrowthDays',
+  SPEAKING_PASS_KEY, SPEAKING_ATTEMPT_KEY
 ];
 let syncReady = false;
 let suppressSync = false;
@@ -1099,7 +1113,7 @@ panel.innerHTML = `
           </div>
           <div style="margin:0 0 16px;padding:12px;border:1px solid #d8b6a8;border-radius:12px;background:#fffaf7">
             <strong style="font-size:14px">📚 자녀 학습 기록 초기화</strong>
-            <div class="small" style="margin:6px 0">현재 선택된 프로필의 학습·복습·말하기 통과 기록을 모두 초기화해 DAY 1부터 처음 시작합니다. 별·보상·게임 기록과 다른 프로필은 유지됩니다.</div>
+            <div class="small" style="margin:6px 0">현재 선택된 프로필의 문장 체크, 말하기 통과, 학습 완료 기록, 복습 목록과 복습 일정을 초기화합니다. 별·보상·게임 기록과 다른 프로필은 유지됩니다.</div>
             <button id="resetStudyRecords" type="button" style="border-color:#c66;color:#a33;width:100%">선택한 프로필의 학습 기록 초기화</button>
             <div class="small" id="resetStudyStatus" style="margin-top:8px" aria-live="polite"></div>
           </div>
@@ -1305,6 +1319,34 @@ function mergeSnapshots(cloudData, localData) {
     }
     merged[DAILY_REVIEW_KEY]=JSON.stringify(combined);
   }
+  const resetAt=[cloudData?.[REVIEW_RESET_KEY],localData?.[REVIEW_RESET_KEY]]
+    .filter(v=>typeof v==='string'&&v.trim()).sort().pop();
+  if(resetAt){
+    merged[REVIEW_RESET_KEY]=resetAt;
+    const resetDay=resetAt.slice(0,10);
+    const marked=parseObject(merged['ilbbangSeq600Review']);
+    const schedule=parseObject(merged[REVIEW_SCHEDULE_KEY]);
+    for(const no of Object.keys(marked)){
+      const entry=schedule[no];
+      const addedTime=entry?.addedAtTime;
+      const isAfterReset=addedTime
+        ? Date.parse(addedTime)>Date.parse(resetAt)
+        : !!(entry?.addedAt && String(entry.addedAt)>resetDay);
+      if(!isAfterReset){delete marked[no];delete schedule[no];}
+    }
+    merged['ilbbangSeq600Review']=JSON.stringify(marked);
+    merged[REVIEW_SCHEDULE_KEY]=JSON.stringify(schedule);
+    const daily=parseObject(merged[DAILY_REVIEW_KEY]);
+    for(const date of Object.keys(daily)){
+      if(date<resetDay){delete daily[date];continue;}
+      const state=daily[date]||{};
+      daily[date]={
+        added:[...new Set((state.added||[]).map(Number).filter(no=>!!marked[no]))],
+        passed:[...new Set((state.passed||[]).map(Number).filter(no=>!!marked[no]))]
+      };
+    }
+    merged[DAILY_REVIEW_KEY]=JSON.stringify(daily);
+  }
   for (const key of ['ilbbangSeq600Start','ilbbangSeqVoiceRate']) {
     if (cloudData?.[key] === undefined && localData?.[key] !== undefined) merged[key] = localData[key];
   }
@@ -1394,11 +1436,16 @@ $login('parentLock').onclick = () => { parentSettingsUnlocked = false; kekePrevi
 $login('notifySave').onclick = async () => {
   if (!parentSettingsUnlocked) return;
   const enabled = $login('notifyEnabled').checked;
-  if (enabled && !('Notification' in window)) { $login('notifyStatus').textContent = '이 브라우저는 알림을 지원하지 않아요.'; return; }
+  if (enabled && !window.IlbbangAndroid && !('Notification' in window)) { $login('notifyStatus').textContent = '이 브라우저는 알림을 지원하지 않아요.'; return; }
   parentNotifySettings = {...parentNotifySettings,enabled,time:$login('notifyTime').value || '19:00',sound:$login('notifySound').checked,lockscreen:$login('notifyLockscreen').value};
   try {
     await setDoc(notifySettingsRef(), parentNotifySettings);
-    if (enabled) await registerPushDevice();
+    if (enabled) {
+      if (window.IlbbangAndroid) {
+        const linked = await registerNativeFcmTokenIfReady();
+        if (!linked) $login('notifyStatus').textContent = 'Android 알림 토큰을 기다리고 있어요. 앱을 다시 열거나 잠시 후 저장해 주세요.';
+      } else await registerPushDevice();
+    }
     else $login('notifyStatus').textContent = '가족 알림을 껐어요. 기기 등록 정보는 유지되며 발송 대상에서 제외됩니다.';
   } catch (err) { $login('notifyStatus').textContent = '저장 또는 푸시 연결 실패: ' + (err.code || err.message) + ' · Firestore 보안 규칙을 확인해 주세요.'; }
 };
@@ -1409,34 +1456,32 @@ $login('resetStudyRecords').onclick = async () => {
   }
   const selected = profiles.find(p => p.id === activeProfileId);
   if (!selected) return;
-  if (!confirm(`현재 선택된 '${selected.name}' 프로필을 처음 학습하는 상태로 초기화할까요?\n\nDAY 진행, 문장 체크, 학습 완료, 말하기 통과, 복습 목록과 복습 일정이 모두 삭제됩니다. 별·보상·게임 기록과 다른 프로필은 유지됩니다.`)) return;
+  if (!confirm(`현재 선택된 '${selected.name}' 프로필의 학습 진행을 초기화할까요?\n\nDAY가 1일차로 돌아가고, 문장 체크·말하기 통과·날짜별 완료 기록·복습 목록·복습 일정이 삭제됩니다. 별·보상·게임 기록과 다른 프로필은 그대로 유지됩니다.`)) return;
   const phrase = prompt(`마지막 확인입니다.
 
 초기화할 프로필: ${selected.name}
 
-DAY 1부터 처음 시작하도록 학습·복습 기록을 모두 지우려면 프로필 이름을 똑같이 입력해 주세요.`);
+DAY를 1일차로 되돌리고 학습·말하기·복습 기록을 지우려면 프로필 이름을 똑같이 입력해 주세요.`);
   if (phrase !== selected.name) {
     $login('resetStudyStatus').textContent = '프로필 이름이 일치하지 않아 초기화를 취소했어요.';
     return;
   }
   const before = readLocalSnapshot();
   try {
-    // 학습을 처음 시작하는 상태로 되돌립니다. 보상/별/게임 기록은 보존합니다.
-    [
-      'ilbbangSeq600Records',
-      'ilbbangSeq600Checked',
-      'ilbbangSeq600Review',
-      REVIEW_SCHEDULE_KEY,
-      DAILY_REVIEW_KEY,
-      SPEAKING_PASS_KEY,
-      SPEAKING_ATTEMPT_KEY
-    ].forEach(key => localStorage.removeItem(key));
+    localStorage.setItem('ilbbangSeq600Records', '{}');
+    localStorage.setItem('ilbbangSeq600Checked', '{}');
+    localStorage.setItem('ilbbangSeq600Review', '{}');
+    localStorage.setItem(REVIEW_SCHEDULE_KEY, '{}');
+    localStorage.setItem(DAILY_REVIEW_KEY, '{}');
+    localStorage.setItem(REVIEW_RESET_KEY, new Date().toISOString());
+    localStorage.setItem(SPEAKING_PASS_KEY, '{}');
+    localStorage.setItem(SPEAKING_ATTEMPT_KEY, '{}');
     localStorage.setItem('ilbbangSeq600Start', iso(today));
     $login('startDate').value = iso(today);
     await persistProfileState();
     lastCloudData = readLocalSnapshot();
     if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
-    $login('resetStudyStatus').textContent = `'${selected.name}' 프로필의 학습·복습·말하기 기록을 모두 초기화했어요. 이제 DAY 1부터 처음 시작합니다. 별과 보상 기록은 유지됩니다.`;
+    $login('resetStudyStatus').textContent = `'${selected.name}' 프로필의 학습·말하기·복습 기록을 초기화하고 DAY 1일차로 되돌렸어요. 별과 보상 기록은 유지됩니다.`;
     status(`☁️ ${selected.name} 프로필의 학습 기록 초기화 및 동기화 완료`);
   } catch (err) {
     applySnapshot(before);
@@ -1565,6 +1610,7 @@ async function loadAndMergeCloud(user) {
       await setDoc(ref, { profiles, activeProfileId, profileData, updatedAt: serverTimestamp() });
       lastCloudData = localData;
       syncReady = true;
+    if (window.IlbbangAndroid && typeof registerNativeFcmTokenIfReady === 'function') registerNativeFcmTokenIfReady().catch(e => console.warn('Android FCM token sync pending', e));
       status('☁️ 첫 동기화 완료 · 기존 기록을 첫 프로필에 보관했어요.');
     } else {
       const cloud = snap.data();
@@ -1587,14 +1633,12 @@ async function loadAndMergeCloud(user) {
       lastCloudData = merged;
       applySnapshot(merged);
       syncReady = true;
+    if (window.IlbbangAndroid && typeof registerNativeFcmTokenIfReady === 'function') registerNativeFcmTokenIfReady().catch(e => console.warn('Android FCM token sync pending', e));
       status('☁️ 동기화 완료 · 기존 기록을 프로필에 연결했어요.');
     }
     updateProfileControls();
     watchSharedProfiles();
     await loadParentNotifySettings();
-    await registerNativeFcmTokenIfReady().catch(error => {
-      console.error('Android FCM token registration failed:', error);
-    });
     if (stopCloudListener) stopCloudListener();
     stopCloudListener = onSnapshot(ref, cloudSnap => {
       if (!syncReady || !cloudSnap.exists() || switchingProfile) return;
@@ -1768,7 +1812,7 @@ onAuthStateChanged(auth, async user => {
   {id:'number',name:'숫자 스피드런',desc:'숫자 1부터 순서대로! 세트가 끝날수록 빨라져요.',init:number},
   {id:'dodge',name:'별 수집 대작전',desc:'별이 있는 길을 고르고 폭탄이 있는 길은 피하세요!',init:dodge}
  ];
- let game,score=0,seconds=120,tick=null,active=false,bonus=false,combo=0,level=1,startedAt=0,sound=true,boostUntil=0,round=0,gameTimers=[];
+ let game,score=0,seconds=60,tick=null,active=false,bonus=false,combo=0,level=1,startedAt=0,sound=true,boostUntil=0,round=0,gameTimers=[];
  const profile=()=>localStorage.getItem('ilbbangActiveProfileId')||'device';
  const bestKey=()=>`ilbbangMiniBest_${profile()}_${game?.id||'all'}`;
  const starsKey=()=>`ilbbangMiniStars_${profile()}`;
@@ -1782,9 +1826,9 @@ onAuthStateChanged(auth, async user => {
  function add(points=1){if(!active)return;combo++;const mult=Date.now()<boostUntil?2:1;const bonusPts=combo>0&&combo%5===0?5:0;score+=points*mult+bonusPts;updateHUD();beep(520+Math.min(combo,12)*35,.06);vibrate();if(combo>0&&combo%8===0){boostUntil=Date.now()+8000;feedback('⚡ 8콤보 아이템 획득! 8초간 점수 2배!',true)}else if(combo%5===0)feedback(`🔥 ${combo}콤보! 보너스 +5점`,true);else feedback(mult===2?'⚡ 더블 점수!':`좋아! ${combo}콤보`,true);}
  function miss(msg='아깝다! 콤보가 끊겼어요.'){if(!active)return;combo=0;updateHUD();feedback(msg,false);beep(180,.12,'triangle');vibrate(45);}
  function levelNow(){return Math.min(5,1+Math.floor((Date.now()-startedAt)/((bonus?15:30)*1000)));}
- function open(isBonus=false){bonus=isBonus;game=isBonus?games[Math.floor(Math.random()*games.length)]:choose();seconds=isBonus?60:120;score=0;combo=0;level=1;round=0;active=false;boostUntil=0;clearInterval(tick);clearGameTimers();$('mgMode').textContent=isBonus?'🎁 학습 완료 보너스':'🎮 오늘의 데일리 게임';$('mgTimer').textContent=fmt(seconds);$('mgTitle').textContent=game.name;$('mgDesc').textContent=game.desc;$('mgBest').textContent=localStorage.getItem(bestKey())||0;$('mgStart').style.display='none';$('mgSkip').style.display='none';$('mgSkip').disabled=true;$('mgProgressBar').style.width='100%';$('mgProgressBar').style.background='linear-gradient(90deg,#7fa66e,#e5b34f)';$('mgFeedback').className='small mg-toast';feedback('게임 준비 중!',true);board.innerHTML='<div class="mg-big">🎮</div>';layer.classList.add('show');setTimeout(start,350);later(()=>{$('mgSkip').disabled=false;$('mgSkip').style.display='inline-block';},1500);updateHUD();}
+ function open(isBonus=false){bonus=isBonus;game=isBonus?games[Math.floor(Math.random()*games.length)]:games[Math.floor(Math.random()*games.length)];seconds=60;score=0;combo=0;level=1;round=0;active=false;boostUntil=0;clearInterval(tick);clearGameTimers();$('mgMode').textContent=isBonus?'🎁 학습 완료 보너스':'🎮 오늘의 1분 게임';$('mgTimer').textContent=fmt(seconds);$('mgTitle').textContent=game.name;$('mgDesc').textContent=game.desc;$('mgBest').textContent=localStorage.getItem(bestKey())||0;$('mgStart').style.display='none';$('mgSkip').style.display='inline-block';$('mgSkip').disabled=true;$('mgSkip').style.pointerEvents='none';$('mgProgressBar').style.width='100%';$('mgProgressBar').style.background='linear-gradient(90deg,#7fa66e,#e5b34f)';$('mgFeedback').className='small mg-toast';feedback('게임 준비 중!',true);board.innerHTML='<div class="mg-big">🎮</div>';layer.classList.add('show');setTimeout(start,350);setTimeout(()=>{if(layer.classList.contains('show')){$('mgSkip').disabled=false;$('mgSkip').style.pointerEvents='auto';}},2200);updateHUD();}
  function choose(){let n=0;for(const c of today)n=(n*31+c.charCodeAt(0))>>>0;return games[n%games.length];}
- function start(){if(active)return;active=true;startedAt=Date.now();$('mgStart').style.display='none';game.init();tick=setInterval(()=>{if(!active)return;seconds--;level=levelNow();$('mgLevel').textContent=level;$('mgTimer').textContent=fmt(seconds);$('mgProgressBar').style.width=(seconds/(bonus?60:120)*100)+'%';if(seconds<=20){$('mgTimer').classList.add('mg-frenzy');$('mgProgressBar').style.background='linear-gradient(90deg,#e45b4c,#f1b24b)';if(seconds%2===0)beep(260,.04,'square');}if(seconds<=0)finish();},1000);}
+ function start(){if(active)return;active=true;startedAt=Date.now();$('mgStart').style.display='none';game.init();tick=setInterval(()=>{if(!active)return;seconds--;level=levelNow();$('mgLevel').textContent=level;$('mgTimer').textContent=fmt(seconds);$('mgProgressBar').style.width=(seconds/60*100)+'%';if(seconds<=20){$('mgTimer').classList.add('mg-frenzy');$('mgProgressBar').style.background='linear-gradient(90deg,#e45b4c,#f1b24b)';if(seconds%2===0)beep(260,.04,'square');}if(seconds<=0)finish();},1000);}
  function finish(){if(!active)return;active=false;clearInterval(tick);clearGameTimers();const old=Number(localStorage.getItem(bestKey())||0);if(score>old)localStorage.setItem(bestKey(),String(score));const earned=score>=100?3:score>=45?2:score>=15?1:0;const total=Number(localStorage.getItem(starsKey())||0)+earned;localStorage.setItem(starsKey(),String(total));$('mgTimer').classList.remove('mg-frenzy');$('mgTitle').textContent=earned===3?'🏆 완벽한 플레이!':'🎉 도전 완료!';$('mgDesc').textContent='다음 판에는 기록을 넘어보세요!';board.innerHTML=`<div class="mg-result"><div class="mg-stars">${'⭐'.repeat(earned)}${'☆'.repeat(3-earned)}</div>획득 점수<br><span style="font-size:46px;color:#a66a12">${score}</span><br>최고 기록 ${Math.max(old,score)}점<br><small>이번 획득 별 ${earned}개 · 누적 별 ${total}개</small></div>`;feedback(bonus?'보너스 게임 완료!':'이제 오늘의 영어 문장을 만나볼까요?',true);$('mgStart').style.display='inline-block';$('mgStart').textContent='학습 화면으로 이동';$('mgSkip').style.display='none';$('mgStart').onclick=closeToStudy;beep(earned===3?880:660,.25);}
  function closeToStudy(){clearInterval(tick);clearGameTimers();layer.classList.remove('show');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';$('mgStart').onclick=start;$('mgTimer').classList.remove('mg-frenzy');window.scrollTo({top:0,behavior:'smooth'});}
  function memory(){const icons=['🍎','🚗','🐱','⚽','🌈','🍕','🐼','🚀','🎸','🦊'];let deck=[...icons.slice(0,8),...icons.slice(0,8)].sort(()=>Math.random()-.5),opened=[],matched=0,locked=false;board.innerHTML=deck.map((v,i)=>`<button class="mg-card" data-i="${i}">❔</button>`).join('');board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||locked||b.disabled||opened.some(x=>x.b===b))return;const i=+b.dataset.i;b.textContent=deck[i];opened.push({b,v:deck[i]});beep(400,.04);if(opened.length===2){if(opened[0].v===opened[1].v){opened.forEach(x=>{x.b.disabled=true;x.b.classList.add('mg-hit')});matched+=2;add(8);opened=[];if(matched===deck.length){feedback('🌟 전부 찾았어요! 새 카드판 보너스!',true);add(20);matched=0;later(()=>{if(active)memory()},450)}}else{locked=true;miss('짝이 아니에요! 다음엔 기억해봐요.');const pair=opened;later(()=>{pair.forEach(x=>x.b.textContent='❔');opened=[];locked=false},650)}}});}
@@ -1792,9 +1836,12 @@ onAuthStateChanged(auth, async user => {
  function color(){const colors=[['빨강','#e95d54'],['파랑','#4e8ed8'],['노랑','#d9ae32'],['초록','#55a66a']];let target,mode;const draw=()=>{if(!active)return;round++;target=colors[Math.floor(Math.random()*4)];mode=Math.random()<.5?'word':'ink';const shown=colors[Math.floor(Math.random()*4)];board.innerHTML=`<div style="width:100%"><div class="small" style="font-weight:900;font-size:15px">${mode==='word'?'글자에 적힌 색깔을 고르세요':'글자 자체의 색깔을 고르세요'}</div><div class="mg-big" style="color:${mode==='word'?shown[1]:target[1]};margin:12px 0">${mode==='word'?target[0]:shown[0]}</div><div class="small">헷갈리지 말고 지시를 확인!</div><div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:12px">${colors.map(c=>`<button data-c="${c[0]}" style="background:${c[1]};color:white;font-weight:900">${c[0]}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;const answer=target[0];if(b.dataset.c===answer){add(3);draw()}else miss('색깔 함정! 지시문을 다시 확인!')});};draw();}
  function number(){let next=1,limit=12;const draw=()=>{if(!active)return;round++;let nums=Array.from({length:limit},(_,i)=>i+1).sort(()=>Math.random()-.5);board.innerHTML=`<div style="width:100%;text-align:center"><div class="small">이번 목표: <b style="font-size:20px;color:#a66a12">${next} → ${limit}</b></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:9px">${nums.map(n=>`<button data-n="${n}" style="width:100%">${n}</button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active||b.disabled)return;if(+b.dataset.n===next){b.disabled=true;b.classList.add('mg-hit');add(1);next++;if(next>limit){feedback('🚀 세트 클리어! 다음 판은 더 빠르게!',true);add(10);next=1;later(draw,250)}}else miss(`${next}부터 찾아야 해요!`)});};draw();}
  function dodge(){let roundNo=0;const draw=()=>{if(!active)return;roundNo++;const safe=Math.floor(Math.random()*3),hazard=Math.random()<.35?Math.floor(Math.random()*3):-1;board.innerHTML=`<div style="width:100%"><div class="mg-big" style="font-size:36px">⭐ 별이 떨어진다!</div><div class="small">별이 있는 길을 선택하세요. 폭탄은 피하기!</div><div style="display:flex;justify-content:space-around;gap:7px;margin-top:16px">${[0,1,2].map(i=>`<button class="mg-lane" data-lane="${i}">${i===safe?'⭐':i===hazard?'💣':'☁️'}<br><small>${i+1}번 길</small></button>`).join('')}</div></div>`;board.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(!active)return;const i=+b.dataset.lane;if(i===safe){add(4);feedback('별 획득! ✨',true)}else if(i===hazard){score=Math.max(0,score-4);combo=0;updateHUD();miss('💥 폭탄! -4점');}else{miss('별을 놓쳤어요!');}later(draw,350)});};draw();}
- $('mgStart').onclick=start;$('mgSkip').onclick=()=>{if($('mgSkip').disabled||!active)return;clearInterval(tick);clearGameTimers();active=false;layer.classList.remove('show');$('mgTimer').classList.remove('mg-frenzy');$('mgSkip').style.display='inline-block';$('mgSkip').disabled=false;$('mgStart').style.display='none';};
+ window.ilbbangOpenMiniGame=()=>open(false);
+ $('mgStart').onclick=start;$('mgSkip').onclick=()=>{if($('mgSkip').disabled)return;clearInterval(tick);clearGameTimers();active=false;layer.classList.remove('show');$('mgTimer').classList.remove('mg-frenzy');$('mgSkip').style.display='inline-block';$('mgStart').style.display='none';};
  $('mgSound').onclick=()=>{sound=!sound;$('mgSound').textContent=sound?'🔊 소리 켬':'🔇 소리 끔';if(sound)beep(700,.08);};
  const bonusBtn=$('bonusGameBtn');if(bonusBtn)bonusBtn.onclick=()=>open(true);
+ // 앱을 열 때마다 데일리 게임을 한 번 실행합니다.
+ setTimeout(()=>{if(!document.hidden)open(false);},1200);
 })();
 </script>
 </body></html>

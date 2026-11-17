@@ -329,16 +329,10 @@ function populateVoices(){
 function speakEnglish(text){
  const cleanText=String(text||'').trim();if(!cleanText)return;
  const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
- // Android TTS가 영어 음성을 실제로 지원할 때만 네이티브 엔진을 사용합니다.
- // 초기화 전이거나 영어 음성 데이터가 없으면 브라우저 음성으로 대체합니다.
- if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'&&
-    typeof window.IlbbangAndroid.canSpeakEnglish==='function'){
-  try{
-   if(window.IlbbangAndroid.canSpeakEnglish()){
-    window.IlbbangAndroid.speak(cleanText,rate);
-    return;
-   }
-  }catch(error){console.warn('Android TTS 사용 불가, 브라우저 음성으로 전환합니다.',error);}
+ // Android WebView에서는 브라우저 speechSynthesis 대신 기기 내장 TTS를 사용합니다.
+ if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'){
+  try{window.IlbbangAndroid.speak(cleanText,rate);return;}
+  catch(error){console.warn('Android TTS 호출 실패, 브라우저 음성으로 전환합니다.',error);}
  }
  if(!('speechSynthesis' in window)){alert('이 브라우저에서는 음성 재생을 지원하지 않아요.');return;}
  populateVoices();window.speechSynthesis.cancel();
@@ -739,15 +733,6 @@ function render(){
  }).join('');
  // Android WebView에서 부모 요소의 위임 클릭이 누락되는 경우를 피하도록
  // 녹음 버튼 자체에 직접 클릭 동작을 연결합니다.
- $('sentenceList').querySelectorAll('button[data-speak]').forEach(speakButton=>{
-  speakButton.onclick=e=>{
-   e.preventDefault();
-   e.stopPropagation();
-   const no=Number(speakButton.getAttribute('data-speak'));
-   const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);
-   if(item)speakEnglish(item.en);
-  };
- });
  $('sentenceList').querySelectorAll('button[data-record]').forEach(recordButton=>{
   recordButton.onclick=e=>{
    e.preventDefault();
@@ -1044,8 +1029,6 @@ $('sentenceList').addEventListener('click',e=>{
  writeMap('ilbbangSeq600Review',m);writeMap(REVIEW_SCHEDULE_KEY,schedule);render();
 });
 window.ilbbangRenderAfterCloudSync = render;
-// 문장 목록은 녹음 파일 복원과 관계없이 앱 진입 즉시 표시합니다.
-render();
 loadSavedRecordings().finally(()=>render());
 
 // 음성 목록은 브라우저가 비동기로 제공할 수 있어 준비 완료 이벤트도 처리

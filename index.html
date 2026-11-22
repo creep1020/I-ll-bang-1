@@ -322,9 +322,13 @@ function refreshMinseoFootball(){
  if(!original)return;
  const art=document.getElementById('minseoFootballArt');
  if(!eligible){original.style.display='';if(art)art.hidden=true;updateMinseoFootballLabels(false,'',Math.max(1,Math.min(6,parseInt(document.getElementById('kekeStagePill')?.textContent)||1)));return;}
- const saved=localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
+ const sharedChoice=window.ilbbangSharedCharacterState?.();
+ const saved=sharedChoice?.playerId || localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
  const chosen=FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi';
  const picker=document.getElementById('minseoFootballSelect');if(picker)picker.value=chosen;
+ const parentCanChange=window.ilbbangIsParentSettingsUnlocked?.()===true;
+ if(picker){picker.disabled=!parentCanChange;picker.style.display=parentCanChange?'block':'none';}
+ const lockedLabel=document.getElementById('minseoFootballLockedLabel');if(lockedLabel){lockedLabel.textContent=parentCanChange?'부모 설정 잠금 해제 중 · 선수 변경 가능':`선택된 선수: ${FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시'} · 변경은 부모만 가능`;}
  const playerName=FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시';
  const pill=document.getElementById('kekeStagePill');
  const stage=Math.max(1,Math.min(6,parseInt(pill?.textContent)||1));
@@ -336,11 +340,16 @@ function setupMinseoFootball(){
  const target=document.getElementById('kekeGrowth');if(!target||document.getElementById('minseoFootballPanel'))return;
  const box=document.createElement('div');box.id='minseoFootballPanel';box.hidden=true;
  box.style.cssText='margin:12px 0;padding:10px;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
- box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"></select><div style="font-size:12px;margin-top:6px">선수를 바꿔도 학습일·별·성장 단계는 유지돼요.</div>';
+ box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"></select><div id="minseoFootballLockedLabel" style="font-size:12px;margin-top:6px">선수 변경은 부모 PIN 잠금 해제 후 가능합니다.</div>';
  target.insertBefore(box,target.children[1]||null);
  const picker=document.getElementById('minseoFootballSelect');
  FOOTBALL_PLAYERS.forEach(([id,name])=>picker.add(new Option(name,id)));
- picker.addEventListener('change',()=>{localStorage.setItem(minseoFootballStorageKey(),picker.value);refreshMinseoFootball();});
+ picker.addEventListener('change',()=>{
+  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){refreshMinseoFootball();return;}
+  localStorage.setItem(minseoFootballStorageKey(),picker.value);
+  window.ilbbangSaveSharedCharacter?.(picker.value).catch(err=>{console.warn('공통 캐릭터 저장 실패:',err);alert('공통 캐릭터 저장 실패: '+err.message+'\n공통 프로필 연결 상태를 확인해 주세요.');});
+  refreshMinseoFootball();
+ });
  const img=document.getElementById('kekeStageImage');
  const art=document.createElement('div');art.id='minseoFootballArt';art.hidden=true;
  art.setAttribute('role','img');art.setAttribute('aria-label','선택한 축구 선수의 성장 단계');
@@ -393,7 +402,7 @@ document.addEventListener('click',e=>{
   kekePreviewStage=null;renderKekeGrowth();
  }
 });
-window.ilbbangOnParentSettingsChanged=()=>{if(typeof renderKekeGrowth==='function')renderKekeGrowth();if(typeof renderParentRewardShop==='function')renderParentRewardShop();};
+window.ilbbangOnParentSettingsChanged=()=>{if(typeof renderKekeGrowth==='function')renderKekeGrowth();if(typeof renderParentRewardShop==='function')renderParentRewardShop();if(typeof refreshMinseoFootball==='function')refreshMinseoFootball();};
 function renderRewards(){
  const streak=currentStreak(),best=bestStreak(),balance=Math.max(0,availableStars());
  renderKekeGrowth();
@@ -1419,6 +1428,28 @@ const SHARED_PROFILE_APP_ID = 'book1-sequential';
 let sharedProfiles = {};
 let sharedAppLinks = {};
 let stopSharedProfileListener = null;
+
+// Shared character contract v1: linked profile owns one character across apps.
+// Only the parent-unlocked UI may invoke a character change; never modify study records.
+let sharedCharacterState = null;
+window.ilbbangSharedCharacterState = () => sharedCharacterState;
+window.ilbbangSaveSharedCharacter = async function(playerId) {
+  if (!parentSettingsUnlocked || !syncReady || !currentUid) throw new Error('부모 PIN 잠금 해제와 로그인이 필요합니다.');
+  const linkedId = sharedAppLinks[sharedProfileLinkKey()];
+  if (!linkedId) throw new Error('공통 프로필을 먼저 연결해 주세요.');
+  if (!['messi','mbappe','son','yamal','haaland','ronaldo','neymar','kane','bellingham','dembele'].includes(playerId)) throw new Error('등록되지 않은 선수입니다.');
+  const ref = doc(db, 'ilbbangShared', currentUid);
+  await runTransaction(db, async tx => {
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? snap.data() : {};
+    const characters = {...(data.characters || {})};
+    const prev = characters[linkedId] || {};
+    characters[linkedId] = {...prev, kind:'football', playerId, version:1, changedAt:new Date().toISOString()};
+    tx.set(ref, {characters, updatedAt:serverTimestamp()}, {merge:true});
+  });
+  return true;
+};
+
 function sharedProfileLinkKey(profileId = activeProfileId) { return `${SHARED_PROFILE_APP_ID}:${profileId}`; }
 function renderSharedProfileControls() {
   const select = $login('sharedProfileSelect');
@@ -1450,6 +1481,9 @@ function watchSharedProfiles() {
     const data = snap.exists() ? snap.data() : {};
     sharedProfiles = data.profiles && typeof data.profiles === 'object' ? data.profiles : {};
     sharedAppLinks = data.appLinks && typeof data.appLinks === 'object' ? data.appLinks : {};
+    const linkedCharacterId = sharedAppLinks[sharedProfileLinkKey()];
+    sharedCharacterState = linkedCharacterId ? (data.characters?.[linkedCharacterId] || null) : null;
+    window.ilbbangRefreshMinseoFootball?.();
     renderSharedProfileControls();
     const linkedRewardProfile = sharedAppLinks[sharedProfileLinkKey()];
     if (linkedRewardProfile && data.rewardShop && data.rewardShop[linkedRewardProfile]) window.ilbbangOnSharedRewardShop?.(data.rewardShop[linkedRewardProfile]);
@@ -2081,7 +2115,7 @@ onAuthStateChanged(auth, async user => {
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     if (stopSharedProfileListener) { stopSharedProfileListener(); stopSharedProfileListener = null; }
-    sharedProfiles = {}; sharedAppLinks = {};
+    sharedProfiles = {}; sharedAppLinks = {}; sharedCharacterState = null;
     status('로그인 전입니다. 두 휴대폰에서 같은 공용 계정으로 로그인해 주세요.');
     return;
   }
@@ -2090,7 +2124,7 @@ onAuthStateChanged(auth, async user => {
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     if (stopSharedProfileListener) { stopSharedProfileListener(); stopSharedProfileListener = null; }
-    sharedProfiles = {}; sharedAppLinks = {};
+    sharedProfiles = {}; sharedAppLinks = {}; sharedCharacterState = null;
     status('익명 계정이 로그인되어 있어요. 로그아웃한 뒤 공용 이메일 계정으로 로그인해 주세요.');
     return;
   }

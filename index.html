@@ -322,6 +322,32 @@ function setupMinseoFootball(){
 window.ilbbangRefreshMinseoFootball=refreshMinseoFootball;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setupMinseoFootball);else setupMinseoFootball();
 
+// The Firebase profile selector is populated after DOMContentLoaded.
+// Observe only the profile selector; do not touch learning, rewards, or Firebase data.
+function watchMinseoProfileSelector(){
+ let watched=null;
+ const connect=()=>{
+  const selector=document.getElementById('profileSelect');
+  if(!selector||selector===watched)return;
+  watched=selector;
+  selector.addEventListener('change',()=>{
+   refreshMinseoFootball();
+   setTimeout(refreshMinseoFootball,350);
+   setTimeout(refreshMinseoFootball,1100);
+  });
+  new MutationObserver(refreshMinseoFootball).observe(selector,{childList:true,subtree:true,characterData:true});
+  refreshMinseoFootball();
+ };
+ connect();
+ if(!watched){
+  const waiter=new MutationObserver(()=>{connect();if(watched)waiter.disconnect();});
+  waiter.observe(document.body,{childList:true,subtree:true});
+ }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',watchMinseoProfileSelector);
+else watchMinseoProfileSelector();
+
+
 // Preview controls are inserted later by the Firebase module, so use document-level delegation.
 document.addEventListener('click',e=>{
  const btn=e.target.closest?.('[data-preview-stage]');

@@ -276,6 +276,51 @@ image.src=KEKE_STAGE_IMAGES[stage-1];
  const previewButtons=$('kekePreviewButtons');if(previewButtons){previewButtons.querySelectorAll('[data-preview-stage]').forEach(btn=>btn.classList.toggle('active',isPreview&&Number(btn.dataset.previewStage)===stage));}
  const previewStatus=$('kekePreviewStatus');if(previewStatus)previewStatus.textContent=isPreview?`${stage}단계 ${stageNames[stage-1]}를 보고 있어요. 실제 누적 학습 ${days}/30일은 변하지 않았습니다.`:'미리보기를 선택하지 않았습니다.';
 }
+
+const FOOTBALL_PLAYERS = [['messi','메시'],['mbappe','음바페'],['son','손흥민'],['yamal','야말'],['haaland','홀란'],['ronaldo','호날두'],['neymar','네이마르'],['kane','해리 케인'],['bellingham','벨링엄'],['dembele','뎀벨레']];
+const FOOTBALL_CHOICE_KEY='ilbbangMinseoFootballChoice';
+function refreshMinseoFootball(){
+ const selector=document.getElementById('profileSelect');
+ const profileName=selector?.selectedOptions?.[0]?.textContent?.trim();
+ const eligible=profileName==='민서';
+ const panel=document.getElementById('minseoFootballPanel');
+ const original=document.getElementById('kekeStageImage');
+ if(panel)panel.hidden=!eligible;
+ if(!original)return;
+ const art=document.getElementById('minseoFootballArt');
+ if(!eligible){original.style.display='';if(art)art.hidden=true;return;}
+ const saved=localStorage.getItem(FOOTBALL_CHOICE_KEY);
+ const chosen=FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi';
+ const picker=document.getElementById('minseoFootballSelect');if(picker)picker.value=chosen;
+ const pill=document.getElementById('kekeStagePill');
+ const stage=Math.max(1,Math.min(6,parseInt(pill?.textContent)||1));
+ const col=(stage-1)%3,row=Math.floor((stage-1)/3);
+ if(art){art.style.backgroundImage=`url('characters/${chosen}.png')`;art.style.backgroundSize='300% 200%';art.style.backgroundPosition=`${col*50}% ${row*100}%`;art.hidden=false;}
+ original.style.display='none';
+}
+function setupMinseoFootball(){
+ const target=document.getElementById('kekeGrowth');if(!target||document.getElementById('minseoFootballPanel'))return;
+ const box=document.createElement('div');box.id='minseoFootballPanel';box.hidden=true;
+ box.style.cssText='margin:12px 0;padding:10px;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
+ box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"></select><div style="font-size:12px;margin-top:6px">선수를 바꿔도 학습일·별·성장 단계는 유지돼요.</div>';
+ target.insertBefore(box,target.children[1]||null);
+ const picker=document.getElementById('minseoFootballSelect');
+ FOOTBALL_PLAYERS.forEach(([id,name])=>picker.add(new Option(name,id)));
+ picker.addEventListener('change',()=>{localStorage.setItem(FOOTBALL_CHOICE_KEY,picker.value);refreshMinseoFootball();});
+ const img=document.getElementById('kekeStageImage');
+ const art=document.createElement('div');art.id='minseoFootballArt';art.hidden=true;
+ art.setAttribute('role','img');art.setAttribute('aria-label','선택한 축구 선수의 성장 단계');
+ art.style.cssText='width:220px;max-width:100%;aspect-ratio:1/1;background-repeat:no-repeat;background-position:center;background-size:300% 200%;border-radius:12px;margin:auto';
+ img?.insertAdjacentElement('afterend',art);
+ const select=document.getElementById('profileSelect');
+ if(select)select.addEventListener('change',()=>setTimeout(refreshMinseoFootball,500));
+ const pill=document.getElementById('kekeStagePill');
+ if(pill)new MutationObserver(refreshMinseoFootball).observe(pill,{childList:true,characterData:true,subtree:true});
+ refreshMinseoFootball();
+}
+window.ilbbangRefreshMinseoFootball=refreshMinseoFootball;
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',setupMinseoFootball);else setupMinseoFootball();
+
 // Preview controls are inserted later by the Firebase module, so use document-level delegation.
 document.addEventListener('click',e=>{
  const btn=e.target.closest?.('[data-preview-stage]');
@@ -1155,7 +1200,7 @@ async function registerPushDevice() {
 const CLOUD_KEYS = [
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
   'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, REVIEW_RESET_KEY, 'ilbbangSeqVoiceRate',
-  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangRewardShopData', 'ilbbangKekeGrowthDays',
+  'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangRewardShopData', 'ilbbangKekeGrowthDays', 'ilbbangMinseoFootballChoice',
   SPEAKING_PASS_KEY, SPEAKING_ATTEMPT_KEY
 ];
 let syncReady = false;
@@ -1724,6 +1769,7 @@ function updateProfileControls() {
   const select = $login('profileSelect');
   select.innerHTML = profiles.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
   select.value = activeProfileId;
+  window.ilbbangRefreshMinseoFootball?.();
   $login('deleteProfile').disabled = profiles.length <= 1;
   $login('addProfile').disabled = profiles.length >= PROFILE_LIMIT;
   renderSharedProfileControls();
@@ -1879,6 +1925,7 @@ async function switchProfile(nextId) {
     applySnapshot(selected);
     lastCloudData = selected;
     updateProfileControls();
+    window.ilbbangRefreshMinseoFootball?.();
     status(`☁️ ${profiles.find(p=>p.id===nextId)?.name || '프로필'} 프로필로 전환했어요.`);
   } catch (error) {
     message('프로필 전환 실패: ' + error.message);

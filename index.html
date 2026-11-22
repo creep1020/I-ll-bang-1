@@ -110,7 +110,7 @@ if ('serviceWorker' in navigator) {
  <div class="small" style="margin-top:8px;text-align:center">세 번 말해도 인식되지 않으면 영어 정답을 확인하고 넘어갈 수 있어요. 음성은 저장하지 않습니다.</div>
 </section>
 <div class="toggle" id="studyViewToggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
-
+<section class="panel" id="voiceSettingsPanel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.85배</span></label><input id="voiceRate" type="range" min="0.75" max="1.05" step="0.05" value="0.85" style="width:100%"></div></section>
 <section class="panel" id="sentenceStudyPanel"><div class="small" style="margin-bottom:10px">🎙 기존 녹음은 내 목소리 확인용이에요. 복습 통과는 별도의 영어 음성 인식으로 확인합니다.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
 <section class="panel" id="studyActionsPanel">
 <div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
@@ -322,54 +322,31 @@ function refreshMinseoFootball(){
  if(!original)return;
  const art=document.getElementById('minseoFootballArt');
  if(!eligible){original.style.display='';if(art)art.hidden=true;updateMinseoFootballLabels(false,'',Math.max(1,Math.min(6,parseInt(document.getElementById('kekeStagePill')?.textContent)||1)));return;}
- const sharedChoice=window.ilbbangSharedCharacterState?.();
- const saved=sharedChoice?.playerId || localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
- const hasChoice=FOOTBALL_PLAYERS.some(p=>p[0]===saved);
- const chosen=hasChoice?saved:null;
- const picker=document.getElementById('minseoFootballSelect');
+ const saved=localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
+ const chosen=FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi';
+ const picker=document.getElementById('minseoFootballSelect');if(picker)picker.value=chosen;
  const parentCanChange=window.ilbbangIsParentSettingsUnlocked?.()===true;
- const allowSelection=!hasChoice||parentCanChange;
- if(picker){if(!allowSelection || !picker.value)picker.value=chosen||'';picker.disabled=!allowSelection;picker.style.display=allowSelection?'block':'none';}
- const previewId=allowSelection && picker?.value ? picker.value : chosen;
- const previewName=FOOTBALL_PLAYERS.find(p=>p[0]===previewId)?.[1]||'선수 선택 전';
- const confirmButton=document.getElementById('minseoFootballConfirm');
- if(confirmButton){confirmButton.style.display=allowSelection?'block':'none';confirmButton.disabled=!picker?.value;confirmButton.textContent=hasChoice?'이 선수로 변경하기':'⚽ 이 선수로 시작하기';}
- const lockedLabel=document.getElementById('minseoFootballLockedLabel');
- if(lockedLabel)lockedLabel.textContent=!hasChoice?'처음에는 원하는 선수를 고른 뒤 아래 선택 버튼을 눌러 주세요. 이후 변경은 부모만 할 수 있어요.':parentCanChange?'부모 설정 잠금 해제 중 · 선수 변경 가능':`선택된 선수: ${FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||''} · 변경은 부모만 가능`;
- const playerName=previewName;
+ if(picker){picker.disabled=!parentCanChange;picker.style.display=parentCanChange?'block':'none';}
+ const lockedLabel=document.getElementById('minseoFootballLockedLabel');if(lockedLabel){lockedLabel.textContent=parentCanChange?'부모 설정 잠금 해제 중 · 선수 변경 가능':`선택된 선수: ${FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시'} · 변경은 부모만 가능`;}
+ const playerName=FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시';
  const pill=document.getElementById('kekeStagePill');
  const stage=Math.max(1,Math.min(6,parseInt(pill?.textContent)||1));
- if(art){art.style.backgroundImage=previewId?`url('characters/${previewId}_${stage}.png')`:'';art.style.backgroundSize='contain';art.style.backgroundPosition='center';art.hidden=!previewId;art.setAttribute('aria-label',previewId?`${previewName} ${stage}단계 미리보기`:'선수 미선택');}
- original.style.display=previewId?'none':'';
+ if(art){art.style.backgroundImage=`url('characters/${chosen}_${stage}.png')`;art.style.backgroundSize='contain';art.style.backgroundPosition='center';art.hidden=false;}
+ original.style.display='none';
  updateMinseoFootballLabels(true,playerName,stage);
 }
 function setupMinseoFootball(){
  const target=document.getElementById('kekeGrowth');if(!target||document.getElementById('minseoFootballPanel'))return;
  const box=document.createElement('div');box.id='minseoFootballPanel';box.hidden=true;
  box.style.cssText='margin:12px 0;padding:10px;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
- box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"><option value="">선수를 선택해 주세요</option></select><button type="button" id="minseoFootballConfirm" class="primary" style="display:none;width:100%;margin-top:8px">이 선수로 시작하기</button><div id="minseoFootballLockedLabel" style="font-size:12px;margin-top:6px"></div>';
+ box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"></select><div id="minseoFootballLockedLabel" style="font-size:12px;margin-top:6px">선수 변경은 부모 PIN 잠금 해제 후 가능합니다.</div>';
  target.insertBefore(box,target.children[1]||null);
  const picker=document.getElementById('minseoFootballSelect');
  FOOTBALL_PLAYERS.forEach(([id,name])=>picker.add(new Option(name,id)));
- let savingFootball=false;
- async function saveFootballSelection(){
-  if(savingFootball||!picker.value)return;
-  const selected=picker.value;
-  const existing=window.ilbbangSharedCharacterState?.()?.playerId||localStorage.getItem(minseoFootballStorageKey());
-  if(existing && window.ilbbangIsParentSettingsUnlocked?.()!==true){refreshMinseoFootball();return;}
-  if(!existing && !confirm(`선택한 ${FOOTBALL_PLAYERS.find(p=>p[0]===selected)?.[1]} 선수로 시작할까요? 이후 변경은 부모만 할 수 있어요.`))return;
-  savingFootball=true;
-  try{
-   // Save to shared Firebase first, so a failed save never falsely locks the child out.
-   if(typeof window.ilbbangSaveSharedCharacter==='function')await window.ilbbangSaveSharedCharacter(selected);
-   else throw new Error('공통 저장 기능이 아직 준비되지 않았어요. 로그인과 공통 프로필 연결을 확인해 주세요.');
-   localStorage.setItem(minseoFootballStorageKey(),selected);
-   refreshMinseoFootball();
-  }catch(err){alert('선수 선택을 저장하지 못했어요: '+(err?.message||err)+'\n로그인과 공통 프로필 연결을 확인해 주세요.');refreshMinseoFootball();}
-  finally{savingFootball=false;}
- }
- document.getElementById('minseoFootballConfirm').addEventListener('click',saveFootballSelection);
- picker.addEventListener('change',()=>{refreshMinseoFootball();});
+ picker.addEventListener('change',()=>{
+  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){refreshMinseoFootball();return;}
+  localStorage.setItem(minseoFootballStorageKey(),picker.value);refreshMinseoFootball();
+ });
  const img=document.getElementById('kekeStageImage');
  const art=document.createElement('div');art.id='minseoFootballArt';art.hidden=true;
  art.setAttribute('role','img');art.setAttribute('aria-label','선택한 축구 선수의 성장 단계');
@@ -463,7 +440,7 @@ function populateVoices(){
 }
 function speakEnglish(text){
  const cleanText=String(text||'').trim();if(!cleanText)return;
- const rate=0.85;
+ const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
  // Android TTS가 영어 음성을 실제로 지원할 때만 네이티브 엔진을 사용합니다.
  // 초기화 전이거나 영어 음성 데이터가 없으면 브라우저 음성으로 대체합니다.
  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'&&
@@ -903,7 +880,7 @@ function render(){
  $('reviewGatePanel').style.display=reviewLocked?'block':'none';
  $('dayControlsPanel').style.display=reviewLocked?'none':'block';
  $('studyViewToggle').style.display=reviewLocked?'none':'flex';
-
+ $('voiceSettingsPanel').style.display=reviewLocked?'none':'block';
  $('sentenceStudyPanel').style.display=reviewLocked?'none':'block';
  $('studyActionsPanel').style.display=reviewLocked?'none':'block';
  if(reviewLocked){reviewMode=reviewModeNow;renderReviewGate(reviewItems,reviewModeNow);}
@@ -1098,7 +1075,7 @@ $('backupFile').onchange=async e=>{
   if(!confirm('현재 이 휴대폰의 일빵빵 학습 기록을 백업 파일의 기록으로 덮어쓸까요? 백업에 없는 항목은 현재 값을 유지합니다.'))return;
   BACKUP_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(obj.data,k))localStorage.setItem(k,obj.data[k]);});
   $('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
-
+  const rate=localStorage.getItem('ilbbangSeqVoiceRate');if(rate){$('voiceRate').value=rate;$('rateLabel').textContent=Number(rate).toFixed(2)+'배';}
   previewDay=null;render();$('backupStatus').textContent='백업 기록을 복원했어요. 학습 달력과 문장 체크를 확인해 보세요.';
  }catch(err){$('backupStatus').textContent='복원 실패: '+err.message;}
  finally{e.target.value='';}
@@ -1185,6 +1162,8 @@ loadSavedRecordings().finally(()=>render());
 
 // 음성 목록은 브라우저가 비동기로 제공할 수 있어 준비 완료 이벤트도 처리
 if('speechSynthesis' in window){populateVoices();window.speechSynthesis.onvoiceschanged=populateVoices;}
+document.getElementById('voiceRate')?.addEventListener('input',e=>{document.getElementById('rateLabel').textContent=Number(e.target.value).toFixed(2)+'배';localStorage.setItem('ilbbangSeqVoiceRate',e.target.value)});
+const savedRate=localStorage.getItem('ilbbangSeqVoiceRate');if(savedRate){document.getElementById('voiceRate').value=savedRate;document.getElementById('rateLabel').textContent=Number(savedRate).toFixed(2)+'배';}
 </script><script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
@@ -1446,29 +1425,6 @@ const SHARED_PROFILE_APP_ID = 'book1-sequential';
 let sharedProfiles = {};
 let sharedAppLinks = {};
 let stopSharedProfileListener = null;
-
-// Shared character contract v1: linked profile owns one character across apps.
-// Only the parent-unlocked UI may invoke a character change; never modify study records.
-let sharedCharacterState = null;
-window.ilbbangSharedCharacterState = () => sharedCharacterState;
-window.ilbbangSaveSharedCharacter = async function(playerId) {
-  if (!syncReady || !currentUid) throw new Error('공통 계정 로그인이 필요합니다.');
-  const linkedId = sharedAppLinks[sharedProfileLinkKey()];
-  if (!linkedId) throw new Error('공통 프로필을 먼저 연결해 주세요.');
-  if (!['messi','mbappe','son','yamal','haaland','ronaldo','neymar','kane','bellingham','dembele'].includes(playerId)) throw new Error('등록되지 않은 선수입니다.');
-  const ref = doc(db, 'ilbbangShared', currentUid);
-  await runTransaction(db, async tx => {
-    const snap = await tx.get(ref);
-    const data = snap.exists() ? snap.data() : {};
-    const characters = {...(data.characters || {})};
-    const prev = characters[linkedId] || {};
-    if(prev.playerId && !parentSettingsUnlocked) throw new Error('이미 선택된 캐릭터는 부모 PIN 해제 후에만 변경할 수 있어요.');
-    characters[linkedId] = {...prev, kind:'football', playerId, version:1, changedAt:new Date().toISOString()};
-    tx.set(ref, {characters, updatedAt:serverTimestamp()}, {merge:true});
-  });
-  return true;
-};
-
 function sharedProfileLinkKey(profileId = activeProfileId) { return `${SHARED_PROFILE_APP_ID}:${profileId}`; }
 function renderSharedProfileControls() {
   const select = $login('sharedProfileSelect');
@@ -1500,9 +1456,6 @@ function watchSharedProfiles() {
     const data = snap.exists() ? snap.data() : {};
     sharedProfiles = data.profiles && typeof data.profiles === 'object' ? data.profiles : {};
     sharedAppLinks = data.appLinks && typeof data.appLinks === 'object' ? data.appLinks : {};
-    const linkedCharacterId = sharedAppLinks[sharedProfileLinkKey()];
-    sharedCharacterState = linkedCharacterId ? (data.characters?.[linkedCharacterId] || null) : null;
-    window.ilbbangRefreshMinseoFootball?.();
     renderSharedProfileControls();
     const linkedRewardProfile = sharedAppLinks[sharedProfileLinkKey()];
     if (linkedRewardProfile && data.rewardShop && data.rewardShop[linkedRewardProfile]) window.ilbbangOnSharedRewardShop?.(data.rewardShop[linkedRewardProfile]);
@@ -1673,6 +1626,11 @@ function applySnapshot(data) {
     }
     const start = localStorage.getItem('ilbbangSeq600Start');
     document.getElementById('startDate').value = start || iso(today);
+    const rate = localStorage.getItem('ilbbangSeqVoiceRate');
+    if (rate) {
+      document.getElementById('voiceRate').value = rate;
+      document.getElementById('rateLabel').textContent = Number(rate).toFixed(2) + '배';
+    }
   } finally { suppressSync = false; }
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
@@ -2129,7 +2087,7 @@ onAuthStateChanged(auth, async user => {
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     if (stopSharedProfileListener) { stopSharedProfileListener(); stopSharedProfileListener = null; }
-    sharedProfiles = {}; sharedAppLinks = {}; sharedCharacterState = null;
+    sharedProfiles = {}; sharedAppLinks = {};
     status('로그인 전입니다. 두 휴대폰에서 같은 공용 계정으로 로그인해 주세요.');
     return;
   }
@@ -2138,7 +2096,7 @@ onAuthStateChanged(auth, async user => {
     updateProfileControls();
     if (stopCloudListener) { stopCloudListener(); stopCloudListener = null; }
     if (stopSharedProfileListener) { stopSharedProfileListener(); stopSharedProfileListener = null; }
-    sharedProfiles = {}; sharedAppLinks = {}; sharedCharacterState = null;
+    sharedProfiles = {}; sharedAppLinks = {};
     status('익명 계정이 로그인되어 있어요. 로그아웃한 뒤 공용 이메일 계정으로 로그인해 주세요.');
     return;
   }
@@ -2190,4 +2148,34 @@ onAuthStateChanged(auth, async user => {
  setTimeout(()=>{if(!document.hidden)open(false);},1200);
 })();
 </script>
-</body></html>
+<script id="ggyuJiwoo14">
+(()=>{
+const jobs=[["doctor", "한의사"], ["flight_attendant", "승무원"], ["baker", "제빵사"], ["teacher", "선생님"], ["idol", "아이돌"], ["scientist", "과학자"], ["ballerina", "발레리나"], ["violinist", "바이올리니스트"], ["painter", "화가"], ["youtuber", "유튜버"], ["firefighter", "소방관"], ["korean_dancer", "한국무용수"], ["soldier", "군인"], ["barista", "바리스타"]], key='ggyuJiwooCharacter:', $=id=>document.getElementById(id);
+const profile=()=>{const s=$('profileSelect');return {id:s?.value||'',name:s?.selectedOptions?.[0]?.textContent?.trim()||''}},isG=()=>profile().name==='뀨',parent=()=>window.ilbbangIsParentSettingsUnlocked?.()===true;
+const storage=()=>key+profile().id,stage=()=>Math.max(1,Math.min(6,parseInt($('kekeStagePill')?.textContent,10)||1));
+function draw(){const panel=$('ggyuJiwooPanel'),art=$('ggyuJiwooArt'),original=$('kekeStageImage'),picker=$('ggyuJiwooPicker'),button=$('ggyuJiwooConfirm'),status=$('ggyuJiwooStatus');if(!panel||!art||!original)return;
+const active=isG();panel.hidden=!active;art.hidden=!active;
+if(!active){if(original.dataset.ggyuOld!==undefined){original.style.display=original.dataset.ggyuOld;delete original.dataset.ggyuOld;}return;}
+if(original.dataset.ggyuOld===undefined)original.dataset.ggyuOld=original.style.display;original.style.display='none';
+const saved=localStorage.getItem(storage()),valid=jobs.some(j=>j[0]===saved);
+if(valid&&picker.value!==saved)picker.value=saved;
+picker.disabled=valid&&!parent();picker.hidden=valid&&!parent();button.hidden=valid;
+button.disabled=!picker.value;
+const selected=valid?saved:picker.value,job=jobs.find(j=>j[0]===selected);
+art.style.backgroundImage=job?`url('characters/jiwoo/jiwoo_${selected}_${stage()}.png')`:'none';
+status.textContent=valid?`${job[1]} 지우 · ${stage()}단계 · ${parent()?'부모 변경 가능':'변경은 부모만 가능'}`:'직업을 고르고 시작하기를 눌러 주세요.';
+}
+function init(){const growth=$('kekeGrowth'),image=$('kekeStageImage');if(!growth||!image||$('ggyuJiwooPanel'))return;
+const panel=document.createElement('div');panel.id='ggyuJiwooPanel';panel.hidden=true;panel.style.cssText='padding:14px;margin:12px 0;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
+panel.innerHTML='<strong>🌸 뀨 전용 지우 성장 캐릭터</strong><select id="ggyuJiwooPicker" style="display:block;width:100%;padding:12px;margin-top:10px;border-radius:8px"><option value="">직업 선택</option></select><button type="button" id="ggyuJiwooConfirm" style="width:100%;padding:12px;margin-top:9px;background:#8765c9;color:white;border:0;border-radius:9px">이 캐릭터로 시작하기</button><div id="ggyuJiwooStatus" style="margin-top:8px;font-size:12px"></div>';
+growth.insertBefore(panel,growth.children[1]||null);
+const picker=$('ggyuJiwooPicker');jobs.forEach(([id,name])=>picker.add(new Option(name+' 지우',id)));
+const art=document.createElement('div');art.id='ggyuJiwooArt';art.hidden=true;art.style.cssText='width:100%;max-width:300px;aspect-ratio:1/1;margin:10px auto;background-size:contain;background-position:center;background-repeat:no-repeat';image.insertAdjacentElement('afterend',art);
+picker.addEventListener('change',()=>{if(isG()&&parent()&&localStorage.getItem(storage())&&picker.value)localStorage.setItem(storage(),picker.value);draw();});
+$('ggyuJiwooConfirm').addEventListener('click',()=>{if(isG()&&!localStorage.getItem(storage())&&picker.value){localStorage.setItem(storage(),picker.value);draw();}});
+$('profileSelect')?.addEventListener('change',()=>{draw();setTimeout(draw,500)});
+const pill=$('kekeStagePill');if(pill)new MutationObserver(draw).observe(pill,{childList:true,subtree:true,characterData:true});
+setInterval(draw,1500);draw();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script></body></html>

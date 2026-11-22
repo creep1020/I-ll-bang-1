@@ -2169,7 +2169,7 @@ function apply(){
  if(valid && sel.value!==saved)sel.value=saved;
  sel.disabled=valid&&!parent();sel.hidden=valid&&!parent();start.hidden=valid;start.disabled=!sel.value;
  const choice=valid?saved:sel.value,job=JOBS.find(j=>j[0]===choice),stage=Math.max(1,Math.min(6,parseInt($('kekeStagePill')?.textContent,10)||1));
- const src=job?'characters/jiwoo/jiwoo_'+choice+'_'+stage+'.png':'';
+ const src=job?'characters/%20jiwoo/jiwoo_'+choice+'_'+stage+'.png':'';
  if(src){if(image.getAttribute('src')!==src)image.setAttribute('src',src);image.hidden=false;}else{image.hidden=true;image.removeAttribute('src');}
  image.alt=job?stages[stage-1]+' '+job[1]+' 지우':'';
  const title=$('kekeGrowth')?.querySelector('.keke-growth-head strong');if(title&&title.textContent!=='🌸 지우의 30일 성장 모험')title.textContent='🌸 지우의 30일 성장 모험';

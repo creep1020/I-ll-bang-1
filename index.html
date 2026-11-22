@@ -326,8 +326,12 @@ function refreshMinseoFootball(){
  const chosen=FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi';
  const picker=document.getElementById('minseoFootballSelect');if(picker)picker.value=chosen;
  const parentCanChange=window.ilbbangIsParentSettingsUnlocked?.()===true;
- if(picker){picker.disabled=!parentCanChange;picker.style.display=parentCanChange?'block':'none';}
- const lockedLabel=document.getElementById('minseoFootballLockedLabel');if(lockedLabel){lockedLabel.textContent=parentCanChange?'부모 설정 잠금 해제 중 · 선수 변경 가능':`선택된 선수: ${FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시'} · 변경은 부모만 가능`;}
+ const firstChoiceDone=localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')==='yes';
+ const firstChoiceOpen=!firstChoiceDone;
+ if(picker){picker.disabled=!(parentCanChange||firstChoiceOpen);picker.style.display=(parentCanChange||firstChoiceOpen)?'block':'none';}
+ const firstButton=document.getElementById('minseoFirstChoiceButton');
+ if(firstButton)firstButton.style.display=firstChoiceOpen?'block':'none';
+ const lockedLabel=document.getElementById('minseoFootballLockedLabel');if(lockedLabel){lockedLabel.textContent=firstChoiceOpen?'처음 한 번 원하는 선수를 고르고 아래 버튼을 눌러 확정하세요.':parentCanChange?'부모 설정 잠금 해제 중 · 선수 변경 가능':`선택된 선수: ${FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시'} · 변경은 부모만 가능`;}
  const playerName=FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시';
  const pill=document.getElementById('kekeStagePill');
  const stage=Math.max(1,Math.min(6,parseInt(pill?.textContent)||1));
@@ -339,13 +343,19 @@ function setupMinseoFootball(){
  const target=document.getElementById('kekeGrowth');if(!target||document.getElementById('minseoFootballPanel'))return;
  const box=document.createElement('div');box.id='minseoFootballPanel';box.hidden=true;
  box.style.cssText='margin:12px 0;padding:10px;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
- box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"></select><div id="minseoFootballLockedLabel" style="font-size:12px;margin-top:6px">선수 변경은 부모 PIN 잠금 해제 후 가능합니다.</div>';
+ box.innerHTML='<label for="minseoFootballSelect" style="font-weight:700">⚽ 민서 전용 축구 캐릭터</label><select id="minseoFootballSelect" style="display:block;width:100%;padding:9px;margin-top:8px;border-radius:8px"></select><button type="button" id="minseoFirstChoiceButton" style="display:none;width:100%;margin-top:9px;padding:12px;border:0;border-radius:10px;background:#8865c7;color:white;font-weight:700">이 선수로 시작하기</button><div id="minseoFootballLockedLabel" style="font-size:12px;margin-top:6px">선수 변경은 부모 PIN 잠금 해제 후 가능합니다.</div>';
  target.insertBefore(box,target.children[1]||null);
  const picker=document.getElementById('minseoFootballSelect');
  FOOTBALL_PLAYERS.forEach(([id,name])=>picker.add(new Option(name,id)));
  picker.addEventListener('change',()=>{
-  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){refreshMinseoFootball();return;}
+  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){if(localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')==='yes'){refreshMinseoFootball();return;}return;}
   localStorage.setItem(minseoFootballStorageKey(),picker.value);refreshMinseoFootball();
+ });
+ document.getElementById('minseoFirstChoiceButton').addEventListener('click',()=>{
+  if(localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')==='yes')return;
+  localStorage.setItem(minseoFootballStorageKey(),picker.value);
+  localStorage.setItem(minseoFootballStorageKey()+':firstChoiceDone','yes');
+  refreshMinseoFootball();
  });
  const img=document.getElementById('kekeStageImage');
  const art=document.createElement('div');art.id='minseoFootballArt';art.hidden=true;

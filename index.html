@@ -329,16 +329,18 @@ function refreshMinseoFootball(){
  const picker=document.getElementById('minseoFootballSelect');
  const parentCanChange=window.ilbbangIsParentSettingsUnlocked?.()===true;
  const allowSelection=!hasChoice||parentCanChange;
- if(picker){picker.value=chosen||'';picker.disabled=!allowSelection;picker.style.display=allowSelection?'block':'none';}
+ if(picker){if(!allowSelection || !picker.value)picker.value=chosen||'';picker.disabled=!allowSelection;picker.style.display=allowSelection?'block':'none';}
+ const previewId=allowSelection && picker?.value ? picker.value : chosen;
+ const previewName=FOOTBALL_PLAYERS.find(p=>p[0]===previewId)?.[1]||'선수 선택 전';
  const confirmButton=document.getElementById('minseoFootballConfirm');
  if(confirmButton){confirmButton.style.display=allowSelection?'block':'none';confirmButton.disabled=!picker?.value;confirmButton.textContent=hasChoice?'이 선수로 변경하기':'⚽ 이 선수로 시작하기';}
  const lockedLabel=document.getElementById('minseoFootballLockedLabel');
  if(lockedLabel)lockedLabel.textContent=!hasChoice?'처음에는 원하는 선수를 고른 뒤 아래 선택 버튼을 눌러 주세요. 이후 변경은 부모만 할 수 있어요.':parentCanChange?'부모 설정 잠금 해제 중 · 선수 변경 가능':`선택된 선수: ${FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||''} · 변경은 부모만 가능`;
- const playerName=FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'선수 선택 전';
+ const playerName=previewName;
  const pill=document.getElementById('kekeStagePill');
  const stage=Math.max(1,Math.min(6,parseInt(pill?.textContent)||1));
- if(art){art.style.backgroundImage=chosen?`url('characters/${chosen}_${stage}.png')`:'';art.style.backgroundSize='contain';art.style.backgroundPosition='center';art.hidden=!chosen;}
- original.style.display=chosen?'none':'';
+ if(art){art.style.backgroundImage=previewId?`url('characters/${previewId}_${stage}.png')`:'';art.style.backgroundSize='contain';art.style.backgroundPosition='center';art.hidden=!previewId;art.setAttribute('aria-label',previewId?`${previewName} ${stage}단계 미리보기`:'선수 미선택');}
+ original.style.display=previewId?'none':'';
  updateMinseoFootballLabels(true,playerName,stage);
 }
 function setupMinseoFootball(){
@@ -367,7 +369,7 @@ function setupMinseoFootball(){
   finally{savingFootball=false;}
  }
  document.getElementById('minseoFootballConfirm').addEventListener('click',saveFootballSelection);
- picker.addEventListener('change',()=>{const btn=document.getElementById('minseoFootballConfirm');if(btn)btn.disabled=!picker.value;});
+ picker.addEventListener('change',()=>{refreshMinseoFootball();});
  const img=document.getElementById('kekeStageImage');
  const art=document.createElement('div');art.id='minseoFootballArt';art.hidden=true;
  art.setAttribute('role','img');art.setAttribute('aria-label','선택한 축구 선수의 성장 단계');

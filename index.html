@@ -72,7 +72,7 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 .keke-stage-dots{display:flex;justify-content:center;gap:8px;margin-top:9px;color:#b8a8d3;font-size:13px}.keke-stage-dots .active{color:#e78bb9;text-shadow:0 1px 3px #f5c4dc}
 .keke-preview-tools{margin-top:10px;padding:10px;border:1px dashed #bba5df;border-radius:12px;background:#fbf8ff}.keke-preview-tools .preview-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.keke-preview-tools button{padding:8px 4px;font-size:12px}.keke-preview-tools button.active{background:#8d6bd6;color:#fff;border-color:#8d6bd6}
 @keyframes kekeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-</style></head>
+</style><style>#voiceSettingsPanel{display:none!important}</style></head>
  <script>
 if ('serviceWorker' in navigator) {
   let appRefreshing = false;
@@ -110,7 +110,7 @@ if ('serviceWorker' in navigator) {
  <div class="small" style="margin-top:8px;text-align:center">세 번 말해도 인식되지 않으면 영어 정답을 확인하고 넘어갈 수 있어요. 음성은 저장하지 않습니다.</div>
 </section>
 <div class="toggle" id="studyViewToggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
-<section class="panel" id="voiceSettingsPanel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.85배</span></label><input id="voiceRate" type="range" min="0.75" max="1.05" step="0.05" value="0.85" style="width:100%"></div></section>
+
 <section class="panel" id="sentenceStudyPanel"><div class="small" style="margin-bottom:10px">🎙 기존 녹음은 내 목소리 확인용이에요. 복습 통과는 별도의 영어 음성 인식으로 확인합니다.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
 <section class="panel" id="studyActionsPanel">
 <div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
@@ -2162,15 +2162,18 @@ if(valid&&picker.value!==saved)picker.value=saved;
 picker.disabled=valid&&!parent();picker.hidden=valid&&!parent();button.hidden=valid;
 button.disabled=!picker.value;
 const selected=valid?saved:picker.value,job=jobs.find(j=>j[0]===selected);
-art.style.backgroundImage=job?`url('characters/jiwoo/jiwoo_${selected}_${stage()}.png')`:'none';
+art.style.backgroundImage='none';
+if(art.dataset.jobStage!==(job?selected+'_'+stage():'')){art.dataset.jobStage=job?selected+'_'+stage():'';art.innerHTML='';}
+if(job&&!art.querySelector('img')){const photo=document.createElement('img');photo.alt=job[1]+' 지우 '+stage()+'단계';photo.src='characters/jiwoo/jiwoo_'+selected+'_'+stage()+'.png';photo.style.cssText='display:block;width:100%;height:100%;object-fit:contain';photo.onerror=()=>{art.innerHTML='<span style=\"font-size:12px;color:#a33\">이미지를 찾지 못했어요. characters/jiwoo 폴더를 확인해 주세요.</span>';};art.appendChild(photo);}
+const growth=$('kekeGrowth');if(growth){const head=growth.querySelector('.keke-growth-head strong');if(head)head.textContent=active?'🌸 지우의 30일 성장 모험':'🐭 뭉이의 30일 성장 모험';const caption=$('kekeGrowthCaption');if(caption)caption.textContent=active?'매일 공부하고 지우와 함께 자라요!':'매일 공부하고 뭉이와 함께 자라요!';const name=$('kekeStageName');if(name&&active)name.textContent=name.textContent.replace(/뭉이/g,'지우');} 
 status.textContent=valid?`${job[1]} 지우 · ${stage()}단계 · ${parent()?'부모 변경 가능':'변경은 부모만 가능'}`:'직업을 고르고 시작하기를 눌러 주세요.';
 }
 function init(){const growth=$('kekeGrowth'),image=$('kekeStageImage');if(!growth||!image||$('ggyuJiwooPanel'))return;
 const panel=document.createElement('div');panel.id='ggyuJiwooPanel';panel.hidden=true;panel.style.cssText='padding:14px;margin:12px 0;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
 panel.innerHTML='<strong>🌸 뀨 전용 지우 성장 캐릭터</strong><select id="ggyuJiwooPicker" style="display:block;width:100%;padding:12px;margin-top:10px;border-radius:8px"><option value="">직업 선택</option></select><button type="button" id="ggyuJiwooConfirm" style="width:100%;padding:12px;margin-top:9px;background:#8765c9;color:white;border:0;border-radius:9px">이 캐릭터로 시작하기</button><div id="ggyuJiwooStatus" style="margin-top:8px;font-size:12px"></div>';
 growth.insertBefore(panel,growth.children[1]||null);
-const picker=$('ggyuJiwooPicker');jobs.forEach(([id,name])=>picker.add(new Option(name+' 지우',id)));
-const art=document.createElement('div');art.id='ggyuJiwooArt';art.hidden=true;art.style.cssText='width:100%;max-width:300px;aspect-ratio:1/1;margin:10px auto;background-size:contain;background-position:center;background-repeat:no-repeat';image.insertAdjacentElement('afterend',art);
+const picker=$('ggyuJiwooPicker');jobs.forEach(([id,name])=>picker.add(new Option(name+' 지우',id)));if(!localStorage.getItem(storage()))picker.value=jobs[0][0];
+const art=document.createElement('div');art.id='ggyuJiwooArt';art.hidden=true;art.style.cssText='display:block;flex:0 0 100%;width:100%;max-width:230px;height:210px;margin:10px auto;overflow:visible';image.insertAdjacentElement('afterend',art);
 picker.addEventListener('change',()=>{if(isG()&&parent()&&localStorage.getItem(storage())&&picker.value)localStorage.setItem(storage(),picker.value);draw();});
 $('ggyuJiwooConfirm').addEventListener('click',()=>{if(isG()&&!localStorage.getItem(storage())&&picker.value){localStorage.setItem(storage(),picker.value);draw();}});
 $('profileSelect')?.addEventListener('change',()=>{draw();setTimeout(draw,500)});

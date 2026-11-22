@@ -72,7 +72,7 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{backgro
 .keke-stage-dots{display:flex;justify-content:center;gap:8px;margin-top:9px;color:#b8a8d3;font-size:13px}.keke-stage-dots .active{color:#e78bb9;text-shadow:0 1px 3px #f5c4dc}
 .keke-preview-tools{margin-top:10px;padding:10px;border:1px dashed #bba5df;border-radius:12px;background:#fbf8ff}.keke-preview-tools .preview-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.keke-preview-tools button{padding:8px 4px;font-size:12px}.keke-preview-tools button.active{background:#8d6bd6;color:#fff;border-color:#8d6bd6}
 @keyframes kekeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-</style></head>
+</style><style>#voiceSettingsPanel{display:none!important}#ggyuJiwooPanel[hidden],#ggyuJiwooArt[hidden]{display:none!important}</style></head>
  <script>
 if ('serviceWorker' in navigator) {
   let appRefreshing = false;
@@ -2150,125 +2150,39 @@ onAuthStateChanged(auth, async user => {
 </script>
 <script id="ggyuJiwoo14">
 (()=>{
-const jobs=[["doctor", "한의사"], ["flight_attendant", "승무원"], ["baker", "제빵사"], ["teacher", "선생님"], ["idol", "아이돌"], ["scientist", "과학자"], ["ballerina", "발레리나"], ["violinist", "바이올리니스트"], ["painter", "화가"], ["youtuber", "유튜버"], ["firefighter", "소방관"], ["korean_dancer", "한국무용수"], ["soldier", "군인"], ["barista", "바리스타"]], key='ggyuJiwooCharacter:', $=id=>document.getElementById(id);
-const profile=()=>{const s=$('profileSelect');return {id:s?.value||'',name:s?.selectedOptions?.[0]?.textContent?.trim()||''}},isG=()=>profile().name==='뀨',parent=()=>window.ilbbangIsParentSettingsUnlocked?.()===true;
-const storage=()=>key+profile().id,stage=()=>Math.max(1,Math.min(6,parseInt($('kekeStagePill')?.textContent,10)||1));
-function draw(){const panel=$('ggyuJiwooPanel'),art=$('ggyuJiwooArt'),original=$('kekeStageImage'),picker=$('ggyuJiwooPicker'),button=$('ggyuJiwooConfirm'),status=$('ggyuJiwooStatus');if(!panel||!art||!original)return;
-const active=isG();panel.hidden=!active;art.hidden=!active;
-if(!active){if(original.dataset.ggyuOld!==undefined){original.style.display=original.dataset.ggyuOld;delete original.dataset.ggyuOld;}return;}
-if(original.dataset.ggyuOld===undefined)original.dataset.ggyuOld=original.style.display;original.style.display='none';
-const saved=localStorage.getItem(storage()),valid=jobs.some(j=>j[0]===saved);
-if(valid&&picker.value!==saved)picker.value=saved;
-picker.disabled=valid&&!parent();picker.hidden=valid&&!parent();button.hidden=valid;
-button.disabled=!picker.value;
-const selected=valid?saved:picker.value,job=jobs.find(j=>j[0]===selected);
-art.style.backgroundImage=job?`url('characters/jiwoo/jiwoo_${selected}_${stage()}.png')`:'none';
-status.textContent=valid?`${job[1]} 지우 · ${stage()}단계 · ${parent()?'부모 변경 가능':'변경은 부모만 가능'}`:'직업을 고르고 시작하기를 눌러 주세요.';
+const jobs=[['doctor','한의사'],['flight_attendant','승무원'],['baker','제빵사'],['teacher','선생님'],['idol','아이돌'],['scientist','과학자'],['ballerina','발레리나'],['violinist','바이올리니스트'],['painter','화가'],['youtuber','유튜버'],['firefighter','소방관'],['korean_dancer','한국무용수'],['soldier','군인'],['barista','바리스타']];
+const $=id=>document.getElementById(id), profile=()=>{const s=$('profileSelect');return {id:s?.value||'',name:s?.selectedOptions?.[0]?.textContent?.trim()||''}}, isG=()=>profile().name==='뀨',parent=()=>window.ilbbangIsParentSettingsUnlocked?.()===true;
+const storage=()=> 'ilbbangGgyuJiwooChoice:'+profile().id;
+const stage=()=>Math.max(1,Math.min(6,parseInt($('kekeStagePill')?.textContent,10)||1));
+const names=['아기','새싹','꿈나무','도전자','전문가','마스터'];
+let lastProfile='';
+function draw(){
+ const panel=$('ggyuJiwooPanel'),art=$('ggyuJiwooArt'),original=$('kekeStageImage'),picker=$('ggyuJiwooPicker'),button=$('ggyuJiwooConfirm'),status=$('ggyuJiwooStatus');if(!panel||!art||!original)return;
+ const active=isG();panel.hidden=!active;art.hidden=!active;
+ if(!active){if(lastProfile==='뀨'){original.style.display='';}lastProfile=profile().name;return;}
+ lastProfile='뀨';original.style.display='none';
+ const saved=localStorage.getItem(storage()),valid=jobs.some(j=>j[0]===saved);
+ if(valid){if(picker.value!==saved)picker.value=saved;}else if(!jobs.some(j=>j[0]===picker.value))picker.value='';
+ picker.disabled=valid&&!parent();picker.hidden=valid&&!parent();button.hidden=valid;button.disabled=!picker.value;
+ const selected=valid?saved:picker.value,job=jobs.find(j=>j[0]===selected),level=stage();
+ art.style.backgroundImage=job?`url("characters/jiwoo/jiwoo_${selected}_${level}.png")`:'none';
+ art.setAttribute('role','img');art.setAttribute('aria-label',job?`${names[level-1]} ${job[1]} 지우`:'직업 선택 전');
+ status.textContent=valid?`${job[1]} 지우 · ${level}단계 · ${parent()?'부모 변경 가능':'변경은 부모만 가능'}`:'직업을 고르고 시작하기를 눌러 주세요.';
+ const growth=$('kekeGrowth');const heading=growth?.querySelector('.keke-growth-head strong');
+ if(heading&&heading.textContent!=='🌸 지우의 30일 성장 모험')heading.textContent='🌸 지우의 30일 성장 모험';
+ const name=$('kekeStageName');if(name&&name.textContent!==names[level-1]+' 지우')name.textContent=names[level-1]+' 지우';
+ const caption=$('kekeGrowthCaption');if(caption&&caption.textContent.includes('뭉이'))caption.textContent=caption.textContent.replaceAll('뭉이','지우');
 }
-function init(){const growth=$('kekeGrowth'),image=$('kekeStageImage');if(!growth||!image||$('ggyuJiwooPanel'))return;
-const panel=document.createElement('div');panel.id='ggyuJiwooPanel';panel.hidden=true;panel.style.cssText='padding:14px;margin:12px 0;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
-panel.innerHTML='<strong>🌸 뀨 전용 지우 성장 캐릭터</strong><select id="ggyuJiwooPicker" style="display:block;width:100%;padding:12px;margin-top:10px;border-radius:8px"><option value="">직업 선택</option></select><button type="button" id="ggyuJiwooConfirm" style="width:100%;padding:12px;margin-top:9px;background:#8765c9;color:white;border:0;border-radius:9px">이 캐릭터로 시작하기</button><div id="ggyuJiwooStatus" style="margin-top:8px;font-size:12px"></div>';
-growth.insertBefore(panel,growth.children[1]||null);
-const picker=$('ggyuJiwooPicker');jobs.forEach(([id,name])=>picker.add(new Option(name+' 지우',id)));
-const art=document.createElement('div');art.id='ggyuJiwooArt';art.hidden=true;art.style.cssText='width:100%;max-width:300px;aspect-ratio:1/1;margin:10px auto;background-size:contain;background-position:center;background-repeat:no-repeat';image.insertAdjacentElement('afterend',art);
-picker.addEventListener('change',()=>{if(isG()&&parent()&&localStorage.getItem(storage())&&picker.value)localStorage.setItem(storage(),picker.value);draw();});
-$('ggyuJiwooConfirm').addEventListener('click',()=>{if(isG()&&!localStorage.getItem(storage())&&picker.value){localStorage.setItem(storage(),picker.value);draw();}});
-$('profileSelect')?.addEventListener('change',()=>{draw();setTimeout(draw,500)});
-const pill=$('kekeStagePill');if(pill)new MutationObserver(draw).observe(pill,{childList:true,subtree:true,characterData:true});
-setInterval(draw,1500);draw();}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-})();
-</script><style id="ggyuJiwooVoicePanelHide">#voiceSettingsPanel{display:none!important}#ggyuJiwooImage[hidden],#ggyuJiwooPanel[hidden]{display:none!important}</style>
-
-<script id="ggyuJiwooLatestPatch">
-/* 뀨 전용 화면 기능만 추가. 원본 Firebase/학습/음성/민서 코드는 그대로 둔다. */
-(function(){
-'use strict';
-const jobs=[["doctor", "한의사"], ["flight_attendant", "승무원"], ["baker", "제빵사"], ["teacher", "선생님"], ["idol", "아이돌"], ["scientist", "과학자"], ["ballerina", "발레리나"], ["violinist", "바이올리니스트"], ["painter", "화가"], ["youtuber", "유튜버"], ["firefighter", "소방관"], ["korean_dancer", "한국무용수"], ["soldier", "군인"], ["barista", "바리스타"]];
-const storagePrefix='ilbbangGgyuJiwooChoice:';
-const $=id=>document.getElementById(id);
-const selected=()=>{const s=$('profileSelect');return {id:s?.value||'',name:s?.selectedOptions?.[0]?.textContent?.trim()||''};};
-const isGgyu=()=>selected().name==='뀨';
-const key=()=>storagePrefix+selected().id;
-const isParent=()=>window.ilbbangIsParentSettingsUnlocked?.()===true;
-const getStage=()=>Math.max(1,Math.min(6,parseInt($('kekeStagePill')?.textContent,10)||1));
-const stageNames=['아기','새싹','꿈나무','도전자','전문가','마스터'];
-function setText(el,text){if(el&&el.textContent!==text)el.textContent=text;}
-function render(){
- const panel=$('ggyuJiwooPanel'),picture=$('ggyuJiwooImage'),original=$('kekeStageImage');
- if(!panel||!picture||!original)return;
- const active=isGgyu();
- panel.hidden=!active;
- picture.hidden=!active;
- if(!active){
-  if(original.dataset.ggyuHidden==='yes'){original.style.display=original.dataset.ggyuPreviousDisplay||'';delete original.dataset.ggyuHidden;}
-  return;
- }
- if(original.dataset.ggyuHidden!=='yes'){
-  original.dataset.ggyuPreviousDisplay=original.style.display;
-  original.dataset.ggyuHidden='yes';
- }
- original.style.display='none';
- const picker=$('ggyuJiwooSelect'),start=$('ggyuJiwooStart');
- const saved=localStorage.getItem(key());
- const valid=jobs.some(j=>j[0]===saved);
- const choice=valid?saved:(jobs.some(j=>j[0]===picker.value)?picker.value:'');
- if(valid&&!isParent()&&picker.value!==saved)picker.value=saved;
- picker.disabled=valid&&!isParent();
- picker.hidden=valid&&!isParent();
- start.hidden=valid;
- start.disabled=!choice;
- setText($('ggyuJiwooHelp'),valid?(isParent()?'부모 PIN 해제 중 · 직업 변경 가능':'직업 변경은 부모 PIN 잠금 해제 후 가능합니다.'):'직업을 고른 다음 시작하기를 누르세요.');
- const stage=getStage(),name=jobs.find(j=>j[0]===choice)?.[1]||'';
- const src=choice?'characters/jiwoo/jiwoo_'+choice+'_'+stage+'.png':'';
- if(src&&picture.getAttribute('src')!==src){picture.src=src;picture.hidden=false;}
- if(!src){picture.removeAttribute('src');picture.hidden=true;}
- picture.alt=name?`${stageNames[stage-1]} ${name} 지우`:'';
- setText($('ggyuJiwooImageLabel'),name?`${stageNames[stage-1]} ${name} 지우`:'직업을 선택해 주세요');
- const heading=$('kekeGrowth')?.querySelector('.keke-growth-head strong');
- setText(heading,'🌸 지우의 30일 성장 모험');
- const caption=$('kekeGrowthCaption');
- if(caption){
-  const current=caption.textContent;
-  const replacement=current.replace(/뭉이/g,'지우').replace(/(?:메시|음바페|손흥민|야말|홀란|호날두|네이마르|해리 케인|벨링엄|뎀벨레) 선수/g,'지우');
-  setText(caption,replacement);
- }
- setText($('kekeStageName'),stageNames[stage-1]+' 지우');
-}
-function init(){
- const growth=$('kekeGrowth'),original=$('kekeStageImage');
- if(!growth||!original||$('ggyuJiwooPanel'))return;
- const panel=document.createElement('div');
- panel.id='ggyuJiwooPanel';panel.hidden=true;
- panel.style.cssText='margin:12px 0;padding:12px;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
- panel.innerHTML='<label for="ggyuJiwooSelect" style="font-weight:800;color:#69479d">🌸 뀨 전용 지우 성장 캐릭터</label><select id="ggyuJiwooSelect" style="display:block;width:100%;padding:11px;margin-top:9px;border-radius:10px"><option value="">직업 선택</option></select><button type="button" id="ggyuJiwooStart" style="display:block;width:100%;margin-top:9px;padding:12px;border:0;border-radius:10px;background:#8d6bd6;color:white;font-weight:800">이 캐릭터로 시작하기</button><div id="ggyuJiwooHelp" style="font-size:12px;margin-top:8px"></div>';
- growth.insertBefore(panel,growth.children[1]||null);
- const picker=$('ggyuJiwooSelect');
- for(const [id,name] of jobs)picker.add(new Option(name+' 지우',id));
- const image=document.createElement('img');image.id='ggyuJiwooImage';image.hidden=true;
- image.style.cssText='display:block;width:100%;height:230px;object-fit:contain;filter:drop-shadow(0 5px 6px #9b78c733);margin:0 auto';
- image.addEventListener('error',()=>{setText($('ggyuJiwooHelp'),'이미지를 불러오지 못했어요. GitHub characters/jiwoo/ 폴더와 파일명을 확인해 주세요.');});
- original.insertAdjacentElement('afterend',image);
- const label=document.createElement('div');label.id='ggyuJiwooImageLabel';label.style.cssText='font-weight:900;text-align:center;color:#684a9d;margin:8px 0';
- image.insertAdjacentElement('afterend',label);
- picker.addEventListener('change',()=>{
-  if(!isGgyu())return;
-  if(localStorage.getItem(key())){
-   if(isParent()&&picker.value)localStorage.setItem(key(),picker.value);
-   else picker.value=localStorage.getItem(key());
-  }
-  render();
- });
- $('ggyuJiwooStart').addEventListener('click',()=>{
-  if(!isGgyu()||!picker.value||localStorage.getItem(key()))return;
-  localStorage.setItem(key(),picker.value);render();
- });
- $('profileSelect')?.addEventListener('change',()=>{render();setTimeout(render,300);});
- // 원본 렌더링 및 민서 전용 화면 업데이트 이후에 뀨 전용 표시만 갱신한다.
- setInterval(render,900);
- render();
+function init(){const growth=$('kekeGrowth'),image=$('kekeStageImage');if(!growth||!image)return;
+ let panel=$('ggyuJiwooPanel');if(!panel){panel=document.createElement('div');panel.id='ggyuJiwooPanel';panel.hidden=true;panel.style.cssText='padding:14px;margin:12px 0;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';panel.innerHTML='<strong>🌸 뀨 전용 지우 성장 캐릭터</strong><select id="ggyuJiwooPicker" style="display:block;width:100%;padding:12px;margin-top:10px;border-radius:8px"><option value="">직업 선택</option></select><button type="button" id="ggyuJiwooConfirm" style="width:100%;padding:12px;margin-top:9px;background:#8765c9;color:white;border:0;border-radius:9px">이 캐릭터로 시작하기</button><div id="ggyuJiwooStatus" style="font-size:12px;margin-top:9px"></div>';growth.insertBefore(panel,growth.children[1]||null);}
+ const picker=$('ggyuJiwooPicker');if(picker.options.length===1)jobs.forEach(([id,name])=>picker.add(new Option(name+' 지우',id)));
+ let art=$('ggyuJiwooArt');if(!art){art=document.createElement('div');art.id='ggyuJiwooArt';art.hidden=true;art.style.cssText='width:100%;max-width:300px;aspect-ratio:1/1;margin:10px auto;background-size:contain;background-position:center;background-repeat:no-repeat';image.insertAdjacentElement('afterend',art);}
+ picker.addEventListener('change',()=>{if(isG()&&parent()&&localStorage.getItem(storage())&&picker.value)localStorage.setItem(storage(),picker.value);draw();});
+ $('ggyuJiwooConfirm').addEventListener('click',()=>{if(isG()&&!localStorage.getItem(storage())&&picker.value){localStorage.setItem(storage(),picker.value);draw();}});
+ $('profileSelect')?.addEventListener('change',()=>{draw();setTimeout(draw,550)});
+ // Firebase loads profile options asynchronously; also original render overwrites labels.
+ setInterval(draw,700);draw();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
-</script>
-</body></html>
+</script></body></html>

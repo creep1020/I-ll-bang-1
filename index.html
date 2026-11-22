@@ -281,6 +281,37 @@ const FOOTBALL_PLAYERS = [['messi','메시'],['mbappe','음바페'],['son','손�
 const FOOTBALL_CHOICE_KEY='ilbbangMinseoFootballChoice';
 function minseoFootballProfileId(){const el=document.getElementById('profileSelect');return el?.value||'';}
 function minseoFootballStorageKey(){return FOOTBALL_CHOICE_KEY+':'+minseoFootballProfileId();}
+// Minseo-only presentation: never change stored stars, awards, or learning records.
+function updateMinseoFootballLabels(eligible, playerName, stage){
+ const growth=document.getElementById('kekeGrowth');
+ const panel=document.getElementById('rewardPanel');
+ if(!growth||!panel)return;
+ const heading=growth.querySelector('.keke-growth-head strong');
+ if(heading)heading.textContent=eligible?'⚽ 나의 축구 스타 성장기':'🐭 뭉이의 30일 성장 모험';
+ const stageName=document.getElementById('kekeStageName');
+ const originalStages=['아기 뭉이','새싹 뭉이','날개 뭉이','왕관 뭉이','별빛 뭉이','완성 뭉이'];
+ const footballStages=['아기','유망주','라이징 스타','에이스','슈퍼스타','레전드'];
+ if(stageName)stageName.textContent=eligible?`${footballStages[stage-1]} ${playerName}`:originalStages[stage-1];
+ const caption=document.getElementById('kekeGrowthCaption');
+ if(caption){
+  const old=caption.textContent;
+  if(eligible){
+   caption.textContent=old.replace(/뭉이가 멋지게 자랐어요!/g,`${playerName} 선수가 멋지게 성장했어요!`).replace(/뭉이와 함께 자라요!/g,`${playerName} 선수와 함께 성장해요!`).replace(/(아기|새싹|날개|왕관|별빛|완성) 뭉이/g,`${footballStages[stage-1]} ${playerName}`);
+  }else if(old.includes('선수와 함께 성장해요!')||old.includes('선수가 멋지게 성장했어요!')){
+   caption.textContent=old.includes('선수가 멋지게 성장했어요!')?'30일 완성! 뭉이가 멋지게 자랐어요!':'매일 공부하고 뭉이와 함께 자라요!';
+  }
+ }
+ // Presentation-only substitutions in the reward panel; reversible when switching profiles.
+ const walker=document.createTreeWalker(panel,NodeFilter.SHOW_TEXT);
+ let node;
+ while((node=walker.nextNode())){
+  if(node.parentElement?.closest('#minseoFootballPanel'))continue;
+  if(node.parentElement?.closest('.keke-growth-head, #kekeStageName, #kekeGrowthCaption'))continue;
+  const before=node.nodeValue;
+  const after=eligible?before.replace(/별/g,'축구공').replace(/⭐/g,'⚽'):before.replace(/축구공/g,'별').replace(/⚽/g,'⭐');
+  if(after!==before)node.nodeValue=after;
+ }
+}
 function refreshMinseoFootball(){
  const selector=document.getElementById('profileSelect');
  const profileName=selector?.selectedOptions?.[0]?.textContent?.trim();
@@ -290,14 +321,16 @@ function refreshMinseoFootball(){
  if(panel)panel.hidden=!eligible;
  if(!original)return;
  const art=document.getElementById('minseoFootballArt');
- if(!eligible){original.style.display='';if(art)art.hidden=true;return;}
+ if(!eligible){original.style.display='';if(art)art.hidden=true;updateMinseoFootballLabels(false,'',Math.max(1,Math.min(6,parseInt(document.getElementById('kekeStagePill')?.textContent)||1)));return;}
  const saved=localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
  const chosen=FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi';
  const picker=document.getElementById('minseoFootballSelect');if(picker)picker.value=chosen;
+ const playerName=FOOTBALL_PLAYERS.find(p=>p[0]===chosen)?.[1]||'메시';
  const pill=document.getElementById('kekeStagePill');
  const stage=Math.max(1,Math.min(6,parseInt(pill?.textContent)||1));
  if(art){art.style.backgroundImage=`url('characters/${chosen}_${stage}.png')`;art.style.backgroundSize='contain';art.style.backgroundPosition='center';art.hidden=false;}
  original.style.display='none';
+ updateMinseoFootballLabels(true,playerName,stage);
 }
 function setupMinseoFootball(){
  const target=document.getElementById('kekeGrowth');if(!target||document.getElementById('minseoFootballPanel'))return;
@@ -374,6 +407,7 @@ function renderRewards(){
  const rows=Object.entries(requests).sort((a,b)=>(b[1].requestedAt||'').localeCompare(a[1].requestedAt||''));
  $('childRewardHistory').innerHTML=rows.length?rows.map(([id,x])=>`<div class="reward-option" style="margin:6px 0"><div class="reward-desc"><strong>${escapeHtml(x.title||'보상')}</strong><br><span class="small">${Number(x.cost)||0}⭐ · ${rewardStatusLabel(x.status)}${x.reason?' · '+escapeHtml(x.reason):''}</span></div>${x.status==='approved'?`<button data-child-used="${escapeHtml(id)}">사용 완료</button>`:''}</div>`).join(''):'아직 신청한 보상이 없어요.';
  $('rewardStatus').textContent='보상 신청 후 부모님 승인 여부와 사용 내역을 여기에서 확인할 수 있어요.';
+ if(typeof refreshMinseoFootball==='function')refreshMinseoFootball();
 }
 function renderParentRewardShop(){
  const catalog=$('parentRewardCatalog'),requestsEl=$('parentRewardRequests');

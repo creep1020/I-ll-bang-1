@@ -323,8 +323,11 @@ function refreshMinseoFootball(){
  const art=document.getElementById('minseoFootballArt');
  if(!eligible){original.style.display='';if(art)art.hidden=true;updateMinseoFootballLabels(false,'',Math.max(1,Math.min(6,parseInt(document.getElementById('kekeStagePill')?.textContent)||1)));return;}
  const saved=localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
- const chosen=FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi';
- const picker=document.getElementById('minseoFootballSelect');if(picker)picker.value=chosen;
+ const picker=document.getElementById('minseoFootballSelect');
+ const firstChoicePending=localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')!=='yes';
+ const preview=firstChoicePending && FOOTBALL_PLAYERS.some(p=>p[0]===picker?.value)?picker.value:null;
+ const chosen=preview || (FOOTBALL_PLAYERS.some(p=>p[0]===saved)?saved:'messi');
+ if(picker && picker.value!==chosen)picker.value=chosen;
  const parentCanChange=window.ilbbangIsParentSettingsUnlocked?.()===true;
  const firstChoiceDone=localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')==='yes';
  const firstChoiceOpen=!firstChoiceDone;
@@ -347,8 +350,10 @@ function setupMinseoFootball(){
  target.insertBefore(box,target.children[1]||null);
  const picker=document.getElementById('minseoFootballSelect');
  FOOTBALL_PLAYERS.forEach(([id,name])=>picker.add(new Option(name,id)));
+ const prior=localStorage.getItem(minseoFootballStorageKey()) || localStorage.getItem(FOOTBALL_CHOICE_KEY);
+ picker.value=FOOTBALL_PLAYERS.some(p=>p[0]===prior)?prior:'messi';
  picker.addEventListener('change',()=>{
-  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){if(localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')==='yes'){refreshMinseoFootball();return;}return;}
+  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){if(localStorage.getItem(minseoFootballStorageKey()+':firstChoiceDone')==='yes'){refreshMinseoFootball();return;}refreshMinseoFootball();return;}
   localStorage.setItem(minseoFootballStorageKey(),picker.value);refreshMinseoFootball();
  });
  document.getElementById('minseoFirstChoiceButton').addEventListener('click',()=>{
@@ -2206,6 +2211,50 @@ function init(){
  if(typeof renderKekeGrowth==='function'){const oldRender=renderKekeGrowth;renderKekeGrowth=function(...args){let result=oldRender.apply(this,args);apply();return result;};}
  if(typeof refreshMinseoFootball==='function'){const oldRefresh=refreshMinseoFootball;refreshMinseoFootball=function(...args){let result=oldRefresh.apply(this,args);apply();return result;};}
  setInterval(apply,1200);apply();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script><style id="damiGrowthStyle">#damiGrowthPanel[hidden],#damiGrowthImage[hidden]{display:none!important}</style>
+<script id="damiGrowthFiveV2">
+(function(){
+'use strict';
+const ITEMS=[['fish','통조림 물고기'],['yeonjun','연준 모티브 인형'],['two_children','두 아이 함께 성장'],['hamburger','햄버거 가게 성장기'],['popcorn','팝콘 영화 스타']];
+const $=id=>document.getElementById(id);
+const active=()=> $('profileSelect')?.selectedOptions?.[0]?.textContent?.trim()==='다미';
+const key=()=> 'ilbbangDamiGrowthChoice:'+($('profileSelect')?.value||'');
+const parent=()=>window.ilbbangIsParentSettingsUnlocked?.()===true;
+const stage=()=>Math.max(1,Math.min(6,parseInt($('kekeStagePill')?.textContent,10)||1));
+let lastActive=false;
+function update(){
+ const panel=$('damiGrowthPanel'),img=$('damiGrowthImage'),picker=$('damiGrowthSelect'),btn=$('damiGrowthConfirm'),old=$('kekeStageImage');
+ if(!panel||!img||!picker||!old)return;
+ const yes=active();panel.hidden=!yes;img.hidden=!yes;
+ if(!yes){if(lastActive){old.style.display='';const h=$('kekeGrowth')?.querySelector('.keke-growth-head strong');if(h&&h.textContent.includes('다미의'))h.textContent='🐭 뭉이의 30일 성장 모험';}lastActive=false;return;}
+ lastActive=true;old.style.display='none';
+ if($('minseoFootballArt'))$('minseoFootballArt').hidden=true;
+ if($('ggyuJiwooImage'))$('ggyuJiwooImage').hidden=true;
+ const saved=localStorage.getItem(key()),valid=ITEMS.some(x=>x[0]===saved);
+ if(valid&&picker.value!==saved)picker.value=saved;
+ picker.disabled=valid&&!parent();picker.hidden=valid&&!parent();btn.hidden=valid;btn.disabled=!picker.value;
+ const choice=valid?saved:picker.value,entry=ITEMS.find(x=>x[0]===choice),n=stage();
+ if(entry){const path='characters/dami/dami_'+entry[0]+'_'+n+'.png';if(img.getAttribute('src')!==path)img.setAttribute('src',path);img.alt=entry[1]+' '+n+'단계';img.hidden=false;}else{img.hidden=true;img.removeAttribute('src');}
+ const h=$('kekeGrowth')?.querySelector('.keke-growth-head strong');if(h&&h.textContent!=='🌷 다미의 30일 성장 모험')h.textContent='🌷 다미의 30일 성장 모험';
+ const cap=$('kekeGrowthCaption');if(cap){const t='매일 공부하고 다미 캐릭터와 함께 자라요!';if(cap.textContent!==t)cap.textContent=t;}
+ const name=$('kekeStageName');if(name){const t=entry?entry[1]+' · '+n+'단계':'캐릭터를 선택해 주세요';if(name.textContent!==t)name.textContent=t;}
+ const status=$('damiGrowthStatus');if(status){const t=entry?(entry[1]+' · '+n+'단계'+(valid?' · 선택 완료':' · 시작하기를 눌러 주세요')):'캐릭터를 선택해 주세요';if(status.textContent!==t)status.textContent=t;}
+}
+function init(){const growth=$('kekeGrowth'),old=$('kekeStageImage');if(!growth||!old||$('damiGrowthPanel'))return;
+ const panel=document.createElement('div');panel.id='damiGrowthPanel';panel.hidden=true;panel.style.cssText='padding:14px;margin:12px 0;border:1px solid #d4c4f5;border-radius:12px;background:#faf6ff';
+ panel.innerHTML='<strong>🌷 다미 전용 성장 캐릭터</strong><select id="damiGrowthSelect" style="display:block;width:100%;padding:12px;margin-top:10px;border-radius:8px"></select><button type="button" id="damiGrowthConfirm" style="width:100%;padding:12px;margin-top:9px;background:#8765c9;color:white;border:0;border-radius:10px">이 캐릭터로 시작하기</button><div id="damiGrowthStatus" style="margin-top:8px;font-size:12px"></div>';
+ growth.insertBefore(panel,growth.children[1]||null);
+ const picker=$('damiGrowthSelect');ITEMS.forEach(([id,name])=>picker.add(new Option(name,id)));
+ const img=document.createElement('img');img.id='damiGrowthImage';img.hidden=true;img.style.cssText='display:block;width:260px;max-width:100%;height:280px;object-fit:contain;margin:8px auto';old.insertAdjacentElement('afterend',img);
+ img.addEventListener('error',()=>{const st=$('damiGrowthStatus');if(active()&&st)st.textContent='이미지 파일을 찾을 수 없어요: '+img.getAttribute('src');});
+ picker.addEventListener('change',()=>{if(active()&&parent()&&localStorage.getItem(key())&&picker.value)localStorage.setItem(key(),picker.value);update();});
+ $('damiGrowthConfirm').addEventListener('click',()=>{if(active()&&!localStorage.getItem(key())&&picker.value){localStorage.setItem(key(),picker.value);update();}});
+ $('profileSelect')?.addEventListener('change',()=>{setTimeout(update,50);setTimeout(update,650)});
+ const pill=$('kekeStagePill');if(pill)new MutationObserver(update).observe(pill,{childList:true,characterData:true,subtree:true});
+ setInterval(update,1200);update();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

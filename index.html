@@ -110,7 +110,7 @@ if ('serviceWorker' in navigator) {
  <div class="small" style="margin-top:8px;text-align:center">세 번 말해도 인식되지 않으면 영어 정답을 확인하고 넘어갈 수 있어요. 음성은 저장하지 않습니다.</div>
 </section>
 <div class="toggle" id="studyViewToggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
-<section class="panel" id="voiceSettingsPanel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.85배</span></label><input id="voiceRate" type="range" min="0.75" max="1.05" step="0.05" value="0.85" style="width:100%"></div></section>
+<section class="panel" id="voiceSettingsPanel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.50배</span></label><input id="voiceRate" type="range" min="0.5" max="0.5" step="0.05" value="0.5" style="width:100%"></div></section>
 <section class="panel" id="sentenceStudyPanel"><div class="small" style="margin-bottom:10px">🎙 기존 녹음은 내 목소리 확인용이에요. 복습 통과는 별도의 영어 음성 인식으로 확인합니다.</div><div class="filterbar"><button id="showAll" class="active">오늘 20문장</button><button id="showReview">복습할 문장</button><span class="item-count" id="itemCount"></span></div><ol class="list" id="sentenceList"></ol><div class="small" id="emptyReview" style="display:none;padding:18px 0">복습할 문장이 아직 없어요. 헷갈리는 문장에서 ‘복습’ 버튼을 눌러 추가하세요.</div></section>
 <section class="panel" id="studyActionsPanel">
 <div class="actions"><button class="primary" id="markDone">✓ 오늘 학습 완료</button><button id="undoDone">완료 취소</button></div>
@@ -455,7 +455,7 @@ function populateVoices(){
 }
 function speakEnglish(text){
  const cleanText=String(text||'').trim();if(!cleanText)return;
- const rate=parseFloat(document.getElementById('voiceRate')?.value||'0.85');
+ const rate=0.5;
  // Android TTS가 영어 음성을 실제로 지원할 때만 네이티브 엔진을 사용합니다.
  // 초기화 전이거나 영어 음성 데이터가 없으면 브라우저 음성으로 대체합니다.
  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.speak==='function'&&

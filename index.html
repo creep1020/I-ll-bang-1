@@ -107,7 +107,7 @@ if ('serviceWorker' in navigator) {
  <div id="reviewFeedback" style="margin-top:10px" aria-live="polite">마이크 버튼을 누르고 영어 문장을 말해 주세요.</div>
  <div id="reviewAnswer" style="display:none;margin-top:12px;padding:16px;background:#edf3eb;border:1px solid #cbd9c8;border-radius:12px;text-align:center;font-size:24px;font-weight:850;color:#31543a"></div>
  <button id="reviewRevealBtn" type="button" class="primary" style="display:none;width:100%;margin-top:10px;min-height:50px">영어 확인하고 다음 문장 →</button>
- <div class="small" style="margin-top:8px;text-align:center">세 번 말해도 인식되지 않으면 영어 정답을 확인하고 넘어갈 수 있어요. 음성은 저장하지 않습니다.</div>
+ <div class="small" style="margin-top:8px;text-align:center">한 번 말한 뒤 인식 결과와 관계없이 영어 정답을 확인하고 넘어갈 수 있어요. 음성은 저장하지 않습니다.</div>
 </section>
 <div class="toggle" id="studyViewToggle"><button id="koreanBtn" class="active">한국어 보기</button><button id="englishBtn">영어 보기</button><button id="bothBtn">함께 보기</button></div>
 <section class="panel" id="voiceSettingsPanel"><strong style="font-size:14px">🔊 음성 설정</strong><div style="margin-top:10px"><label for="voiceRate">말하기 속도 <span id="rateLabel">0.50배</span></label><input id="voiceRate" type="range" min="0.5" max="0.5" step="0.05" value="0.5" style="width:100%"></div></section>
@@ -549,21 +549,11 @@ async function finishSpeakingAttempt(){
  const percent=speakingMatch(item.en,spoken);
  const passes=!!spoken&&percent>=50;
  const saved=speakingPasses(),k=speakingKey(no),attemptMap=speakingAttempts();
- let attemptCount=Number(attemptMap[k]||0);
- if(passes){
-  saved[k]={passed:true,percent,transcript:spoken,at:new Date().toISOString()};
-  delete attemptMap[k];attemptCount=0;
- }else{
-  delete saved[k];attemptCount=Math.min(3,attemptCount+1);attemptMap[k]=attemptCount;
- }
+ saved[k]={passed:true,matched:passes,percent,transcript:spoken,at:new Date().toISOString()};
+ delete attemptMap[k];
  writeMap(SPEAKING_PASS_KEY,saved);writeMap(SPEAKING_ATTEMPT_KEY,attemptMap);
- if(!passes&&attemptCount>=3)autoAddFailedSpeakingToReview(no);
- const transcript=spoken?`<br><b>인식 결과:</b> “${escapeHtml(spoken)}”`:`<br>인식된 음성이 없어요.${activeRecognitionError?` (오류: ${escapeHtml(activeRecognitionError)})`:''}`;
- let result=passes
-  ?`<b>✅ 통과 · 일치율 ${percent}%</b>${transcript}<br>이 문장은 말하기 학습을 통과했어요.`
-  :attemptCount>=3
-   ?`<b>📚 3회 실패 · 일치율 ${percent}%</b>${transcript}<br>복습 목록에 자동 등록했어요. 오늘 복습에서 다시 말해 주세요.`
-   :`<b>🔁 다시 녹음해 주세요 · 일치율 ${percent}% (${attemptCount}/3회)</b>${transcript}<br>원문 단어의 50% 이상을 순서대로 말해야 통과해요.`;
+ const transcript=spoken?`<br><b>인식 결과:</b> “${escapeHtml(spoken)}”`:'<br>인식된 음성이 없어요.';
+ let result=`<b>✅ 녹음 완료 · 일치율 ${percent}%</b>${transcript}<br>다음 문장으로 넘어갈 수 있어요.`;
  const mime=activeRecorder?.mimeType||activeChunks[0]?.type||'audio/webm';
  const blob=new Blob(activeChunks,{type:mime});
  recordingResults[no]=recordingResults[no]||{};
@@ -731,7 +721,7 @@ window.onIlbbangNativeVoiceResult=async function(result){
 
 async function startRecording(no){
  const attemptKey=speakingKey(no),attemptCount=Number(speakingAttempts()[attemptKey]||0);
- if(attemptCount>=3&&!speakingPasses()[attemptKey]?.passed){alert('이 문장은 3회 도전을 마쳤어요. 오늘 복습 목록에서 다시 연습해 주세요.');return;}
+
  if(window.IlbbangAndroid&&typeof window.IlbbangAndroid.startRecording==='function'){
   if(activeNo!==null||nativeVoicePending){alert('이전 문장의 음성 확인이 끝나지 않았어요. 잠시만 기다려 주세요.');return;}
   const item=DATA.flatMap(d=>d.items).find(x=>x.no===no);if(!item)return;
@@ -859,9 +849,9 @@ function render(){
   const pass=speaking[speakingKey(x.no)];
   const attemptCount=Number(speakingAttempts()[speakingKey(x.no)]||0);
   const rec=recordingResults[x.no];
-  const initial=pass?.passed?`<b>✅ 통과 · 일치율 ${pass.percent}%</b><br>인식 결과: “${escapeHtml(pass.transcript||'')}”`:'';
-  const exhausted=attemptCount>=3&&!pass?.passed;
-  const recordLabel=activeNo===x.no?'⏹ 녹음 종료':pass?.passed?'✅ 말하기 통과':exhausted?'📚 복습 대기':attemptCount?`🎙 다시 녹음 (${attemptCount}/3)`:'🎙 녹음';
+  const initial=pass?.passed?`<b>✅ 녹음 완료 · 일치율 ${pass.percent}%</b><br>인식 결과: “${escapeHtml(pass.transcript||'')}”`:'';
+  const exhausted=false;
+  const recordLabel=activeNo===x.no?'⏹ 녹음 종료':pass?.passed?'🎙 녹음 완료':exhausted?'📚 복습 대기':attemptCount?`🎙 다시 녹음`:'🎙 녹음';
   return `<li><span class="num">${String(x.no).padStart(3,'0')}</span><span class="item-main"><span class="item-text">${text}</span><span class="item-tools"><button class="speak-btn" data-speak="${x.no}" aria-label="영어 문장 듣기">🔊 듣기</button><button class="record-btn" data-record="${x.no}" ${exhausted?'disabled':''}>${recordLabel}</button><label><input type="checkbox" data-check="${x.no}" ${checked[x.no]?'checked':''}> 학습 완료</label><button class="review-btn ${review[x.no]?'saved':''}" data-review="${x.no}">${review[x.no]?'★ 복습 목록에 있음':'☆ 복습 추가'}</button></span><div class="record-result ${rec||initial?'show':''}" id="record-${x.no}">${rec?.html||initial}${rec?.audioUrl?`<audio controls class="record-audio" src="${rec.audioUrl}"></audio>`:''}</div></span></li>`;
  }).join('');
  // Android WebView에서 부모 요소의 위임 클릭이 누락되는 경우를 피하도록
@@ -943,11 +933,11 @@ function handleReviewFailure(item,mode,message){
   if(!entry.dueDate||entry.dueDate>iso(today))entry.dueDate=iso(today);
   schedule[item.no]=entry;writeMap(REVIEW_SCHEDULE_KEY,schedule);
  }
- if(attempts>=3){
+ if(attempts>=1){
   reviewFallbackNo=item.no;reviewFallbackMode=mode;
   const remaining=mode==='daily'?todayDailyReviewItems():dueReviewItems();
   renderReviewGate(remaining,mode);
-  $('reviewFeedback').textContent='세 번 시도했어요. 음성인식이 어려웠나 봐요. 영어 정답을 확인하고 다음 문장으로 넘어가세요.';
+  $('reviewFeedback').textContent='한 번 말했어요. 영어 정답을 확인하고 다음 문장으로 넘어가세요.';
  }else{
   const remaining=mode==='daily'?todayDailyReviewItems():dueReviewItems();
   renderReviewGate(remaining,mode);
@@ -1060,7 +1050,7 @@ $('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
 $('koreanBtn').onclick=()=>{viewMode='ko';render()};
 $('englishBtn').onclick=()=>{viewMode='en';render()};
 $('bothBtn').onclick=()=>{viewMode='both';render()};
-$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked'),speaking=speakingPasses();if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}if(!items.every(x=>!!speaking[speakingKey(x.no)]?.passed)){alert('오늘의 모든 문장을 녹음하고 일치율 50% 이상을 통과해야 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday(true);render()};
+$('markDone').onclick=()=>{if(previewDay!==null)return;if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked'),speaking=speakingPasses();if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}if(!items.every(x=>!!speaking[speakingKey(x.no)]?.passed)){alert('오늘의 모든 문장을 한 번씩 녹음해야 완료할 수 있어요.');render();return;}let r=readRecords();r[key(iso(today),currentDay())]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday(true);render()};
 $('undoDone').onclick=()=>{if(previewDay!==null)return;let r=readRecords();delete r[key(iso(today),currentDay())];localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));render()};
 $('prevMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()-1,1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+1,1);renderCalendar()};

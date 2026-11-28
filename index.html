@@ -103,6 +103,7 @@ if ('serviceWorker' in navigator) {
  <div id="reviewGateProgress" style="margin-top:10px"><span id="reviewGateProgressBar"></span></div>
  <div class="review-question" id="reviewGateKorean"></div>
  <div class="small" id="reviewGateNumber" style="text-align:center"></div>
+ <button id="reviewListenBtn" type="button">🔊 듣기</button>
  <button id="reviewMicBtn" type="button">🎙️ 영어로 말하기</button>
  <div id="reviewFeedback" style="margin-top:10px" aria-live="polite">마이크 버튼을 누르고 영어 문장을 말해 주세요.</div>
  <div id="reviewAnswer" style="display:none;margin-top:12px;padding:16px;background:#edf3eb;border:1px solid #cbd9c8;border-radius:12px;text-align:center;font-size:24px;font-weight:850;color:#31543a"></div>
@@ -149,7 +150,7 @@ if ('serviceWorker' in navigator) {
 <p class="small" style="margin:8px 0 12px">학습 완료 날짜, 문장별 체크, 복습 목록, 학습 시작일, 음성 속도를 파일로 저장하고 다른 휴대폰에서도 복원할 수 있어요.</p>
 <div class="actions"><button class="primary" id="exportBackup">백업 파일 저장</button><button id="importBackup">백업 파일 불러오기</button></div>
 <input type="file" id="backupFile" accept="application/json,.json" style="position:absolute;width:1px;height:1px;opacity:0">
-<details style="margin-top:10px"><summary>파일 저장이 안 될 때 · 백업 코드</summary><textarea id="backupText" rows="5" style="width:100%;margin-top:8px" placeholder="백업 코드를 복사하거나 붙여넣으세요"></textarea><div class="actions"><button id="backupCopy">코드 만들기·복사</button><button id="backupPasteRestore">코드로 복원</button></div></details><div class="small" id="backupStatus" aria-live="polite" style="margin-top:9px">기기 변경이나 앱 초기화 전에 백업해 주세요.</div>
+<details id="backupDetails" style="margin-top:10px"><summary>파일 저장이 안 될 때 · 백업 코드</summary><textarea id="backupText" rows="5" style="width:100%;margin-top:8px" placeholder="백업 코드를 복사하거나 붙여넣으세요"></textarea><div class="actions"><button id="backupCopy">코드 만들기·복사</button><button id="backupPasteRestore">코드로 복원</button></div></details><div class="small" id="backupStatus" aria-live="polite" style="margin-top:9px">기기 변경이나 앱 초기화 전에 백업해 주세요.</div>
 </section>
 <section class="panel" id="cloudPanel" style="display:none!important">
 <strong style="font-size:14px">👨‍👧 부모 · 자녀 학습 공유</strong>
@@ -240,10 +241,11 @@ function rewardShopData(){
  if(!saved.requests||typeof saved.requests!=='object')saved.requests={};
  return saved;
 }
-function saveRewardShop(data){writeMap(REWARD_SHOP_KEY,data);if(window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(data).catch(e=>console.warn('공통 보상 저장 대기:',e));renderRewards();renderParentRewardShop();}
+let rewardSavePending=0;
+function saveRewardShop(data){writeMap(REWARD_SHOP_KEY,data);if(window.ilbbangSaveSharedRewardShop){rewardSavePending++;window.ilbbangSaveSharedRewardShop(data).catch(e=>{console.warn('공통 보상 저장 대기:',e);const el=$('parentRewardStatus');if(el)el.textContent='기기에는 저장했지만 공통 보상 동기화에 실패했어요.';}).finally(()=>rewardSavePending--);}renderRewards();renderParentRewardShop();}
 let sharedRewardShopActive=false;
 window.ilbbangGetLocalRewardShop=()=>{const shop=rewardShopData();shop.earned={...(shop.earned||{})};if(!shop.resetAt)for(const k of Object.keys(starAwards()))shop.earned['book1-sequential|'+k]=true;return shop;};
-window.ilbbangOnSharedRewardShop=(data)=>{if(!data)return;sharedRewardShopActive=true;const local=rewardShopData();const deletedRewards={...(data.deletedRewards||{}),...(local.deletedRewards||{})};const merged={...data,deletedRewards,rewards:(Array.isArray(data.rewards)?data.rewards:local.rewards).filter(r=>!deletedRewards[r.id]),requests:{...(local.requests||{}),...(data.requests||{})},earned:{...(data.earned||{})}};const missingLocalAwards=!merged.resetAt&&Object.keys(starAwards()).some(k=>!merged.earned['book1-sequential|'+k]);if(!merged.resetAt)for(const k of Object.keys(starAwards()))merged.earned['book1-sequential|'+k]=true;const missingLocalRequests=Object.keys(local.requests||{}).some(id=>!data.requests?.[id]);writeMap(REWARD_SHOP_KEY,merged);if((missingLocalAwards||missingLocalRequests||Object.keys(deletedRewards).some(id=>!data.deletedRewards?.[id])||!Array.isArray(data.rewards))&&window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(merged).catch(e=>console.warn(e));renderRewards();renderParentRewardShop();};
+window.ilbbangOnSharedRewardShop=(data)=>{if(!data||rewardSavePending)return;sharedRewardShopActive=true;const local=rewardShopData();const deletedRewards={...(data.deletedRewards||{}),...(local.deletedRewards||{})};const merged={...data,deletedRewards,rewards:(Array.isArray(data.rewards)?data.rewards:local.rewards).filter(r=>!deletedRewards[r.id]),requests:{...(local.requests||{}),...(data.requests||{})},earned:{...(data.earned||{})}};const missingLocalAwards=!merged.resetAt&&Object.keys(starAwards()).some(k=>!merged.earned['book1-sequential|'+k]);if(!merged.resetAt)for(const k of Object.keys(starAwards()))merged.earned['book1-sequential|'+k]=true;const missingLocalRequests=Object.keys(local.requests||{}).some(id=>!data.requests?.[id]);writeMap(REWARD_SHOP_KEY,merged);if((missingLocalAwards||missingLocalRequests||Object.keys(deletedRewards).some(id=>!data.deletedRewards?.[id])||!Array.isArray(data.rewards))&&window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(merged).catch(e=>console.warn(e));renderRewards();renderParentRewardShop();};
 function shopRequests(){return rewardShopData().requests||{}}
 function rewardStatusLabel(status){return ({pending:'부모님 확인 대기',approved:'승인 · 사용 가능',used:'사용 완료',rejected:'거절됨',cancelled:'취소됨'})[status]||'상태 확인 중'}
 function studyDates(){return [...new Set(Object.keys(readRecords()).filter(k=>readRecords()[k]===true).map(k=>k.split('|')[0]))].sort();}
@@ -917,6 +919,7 @@ function renderReviewGate(items,mode='scheduled'){
  $('reviewGateProgressBar').style.width=(reviewPassedInSession/Math.max(reviewSessionTotal,reviewPassedInSession+items.length)*100)+'%';
  $('reviewGateKorean').textContent=item.ko;
  $('reviewGateNumber').textContent=`문장 ${item.no}번 · ${index+1} / ${items.length}`;
+ $('reviewListenBtn').disabled=reviewListening;
  $('reviewMicBtn').style.display=showingAnswer?'none':'block';
  const nativeReviewActive=nativeVoicePending?.mode==='review';
  $('reviewMicBtn').disabled=reviewListening&&(!nativeReviewActive||!nativeVoicePending.recordingStarted);
@@ -1074,6 +1077,7 @@ $('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),cal
 $('showAll').onclick=()=>{listMode='all';render()};
 $('showReview').onclick=()=>{listMode='review';render()};
 $('reviewMicBtn').onclick=startReviewSpeaking;
+$('reviewListenBtn').onclick=()=>{const items=reviewMode==='scheduled'?dueReviewItems():todayDailyReviewItems();const item=items.find(x=>x.no===reviewCurrentNo);if(item&&!reviewListening)speakEnglish(item.en);};
 $('sentenceList').addEventListener('change',e=>{
  const no=e.target.getAttribute('data-check');if(!no)return;
  let m=readMap('ilbbangSeq600Checked');if(e.target.checked)m[no]=true;else delete m[no];writeMap('ilbbangSeq600Checked',m);render();
@@ -1083,11 +1087,12 @@ $('sentenceList').addEventListener('change',e=>{
 const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),profileId:$('profileSelect')?.value||'',data};}
 $('exportBackup').onclick=async()=>{
- try{const payload=collectBackup(),text=JSON.stringify(payload,null,2);$('backupText').value=text;const file=new File([text],`ilbbang_backup_${iso(new Date())}.json`,{type:'application/json'});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'일빵빵 학습 백업'});$('backupStatus').textContent='공유 화면을 열었어요. 저장 위치를 확인해 주세요.';return;}const url=URL.createObjectURL(file);const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$('backupStatus').textContent='다운로드를 요청했어요. 내 파일에서 확인하세요. 없으면 백업 코드를 사용하세요.';}
+ try{const payload=collectBackup(),text=JSON.stringify(payload,null,2);$('backupText').value=text;$('backupDetails').open=true;const file=new File([text],`ilbbang_backup_${iso(new Date())}.json`,{type:'application/json'});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'일빵빵 학습 백업'});$('backupStatus').textContent='공유 화면을 열었어요. 저장 위치를 확인해 주세요.';return;}const url=URL.createObjectURL(file);const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$('backupStatus').textContent='다운로드를 요청했어요. 내 파일에서 확인하세요. 없으면 백업 코드를 사용하세요.';}
  catch(err){$('backupStatus').textContent='파일 저장이 완료되지 않았어요. 백업 코드를 이용하세요.';}
 };
 $('backupCopy').onclick=async()=>{const t=$('backupText');t.value=JSON.stringify(collectBackup());t.focus();t.select();try{await navigator.clipboard.writeText(t.value);$('backupStatus').textContent='백업 코드를 복사했어요.';}catch(e){$('backupStatus').textContent='선택된 코드를 길게 눌러 복사하세요.';}};
-$('importBackup').onclick=()=>{$('backupFile').value='';$('backupFile').click();$('backupStatus').textContent='파일 선택창이 열리지 않으면 백업 코드로 복원하세요.';};
+$('importBackup').onclick=()=>{$('backupDetails').open=true;$('backupFile').value='';$('backupFile').style.cssText='display:block;width:100%;margin-top:8px';$('backupFile').click();$('backupStatus').textContent='파일 선택창이 열리지 않으면 크롬에서 앱 주소를 열거나 백업 코드로 복원하세요.';};
+function pageConfirm(message){return new Promise(resolve=>{const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:100000;background:#0008;display:grid;place-items:center;padding:20px';const card=document.createElement('div');card.style.cssText='background:white;border-radius:16px;padding:20px;max-width:360px;width:100%';const text=document.createElement('p');text.textContent=message;const cancel=document.createElement('button'),ok=document.createElement('button');cancel.textContent='취소';ok.textContent='확인';ok.style.marginLeft='10px';const finish=v=>{overlay.remove();resolve(v)};cancel.onclick=()=>finish(false);ok.onclick=()=>finish(true);card.append(text,cancel,ok);overlay.append(card);document.body.append(overlay);});}
 async function restoreBackupText(text){
  try{const obj=JSON.parse(text);if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
  if(obj.profileId && $('profileSelect')?.value && obj.profileId!==$('profileSelect').value)throw new Error('다른 프로필의 백업입니다. 해당 프로필을 먼저 선택하세요.');
@@ -1095,7 +1100,7 @@ async function restoreBackupText(text){
   for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object')throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
-  if(!confirm('현재 이 휴대폰의 일빵빵 학습 기록을 백업 파일의 기록으로 덮어쓸까요? 백업에 없는 항목은 현재 값을 유지합니다.'))return;
+  if(!await pageConfirm('현재 이 휴대폰의 일빵빵 학습 기록을 백업 파일의 기록으로 덮어쓸까요? 백업에 없는 항목은 현재 값을 유지합니다.'))return;
   BACKUP_KEYS.forEach(k=>{if(Object.prototype.hasOwnProperty.call(obj.data,k))localStorage.setItem(k,obj.data[k]);});
   $('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
   const rate=localStorage.getItem('ilbbangSeqVoiceRate');if(rate){$('voiceRate').value=rate;$('rateLabel').textContent=Number(rate).toFixed(2)+'배';}
@@ -1121,13 +1126,13 @@ $('childRewardSubmit').addEventListener('click',()=>{
  shop.requests[id]={rewardId:id,title,cost:0,reason,status:'pending',requestedAt:new Date().toISOString(),source:'child'};
  saveRewardShop(shop);$('childRewardTitle').value='';$('childRewardReason').value='';$('rewardStatus').textContent='보상을 신청했어요. 부모님이 별 개수를 정하고 승인해 주실 거예요.';
 });
-$('childRewardHistory').addEventListener('click',e=>{
+$('childRewardHistory').addEventListener('click',async e=>{
  const btn=e.target.closest('[data-child-used]');if(!btn)return;const shop=rewardShopData(),item=shop.requests[btn.dataset.childUsed];
  if(!item||item.status!=='approved')return;
- if(!confirm('이 보상을 실제로 사용했나요? 사용 완료로 기록할까요?'))return;
+ if(!await pageConfirm('이 보상을 실제로 사용했나요? 사용 완료로 기록할까요?'))return;
  item.status='used';item.usedAt=new Date().toISOString();saveRewardShop(shop);
 });
-$('parentRewardCatalog').addEventListener('click',e=>{
+document.addEventListener('click',e=>{if(!e.target.closest('#parentRewardCatalog'))return;
  const save=e.target.closest('[data-save-reward]'),del=e.target.closest('[data-delete-reward]');if(!save&&!del)return;
  if(window.ilbbangIsParentSettingsUnlocked?.()!==true){$('parentRewardStatus').textContent='부모 PIN을 먼저 해제해 주세요.';return;}
  const shop=rewardShopData();
@@ -1139,14 +1144,14 @@ $('parentRewardCatalog').addEventListener('click',e=>{
  if(!title||!Number.isInteger(cost)||cost<1||cost>420){$('parentRewardStatus').textContent='보상 이름과 별 개수(1~420)를 확인해 주세요.';return;}
  Object.assign(r,{title,cost,desc});saveRewardShop(shop);$('parentRewardStatus').textContent='보상 항목을 저장했어요.';
 });
-$('parentRewardAdd').addEventListener('click',()=>{
+document.addEventListener('click',e=>{if(!e.target.closest('#parentRewardAdd'))return;
  if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
  const title=$('parentRewardNewTitle').value.trim(),cost=Number($('parentRewardNewCost').value),desc=$('parentRewardNewDesc').value.trim();
  if(!title||!Number.isInteger(cost)||cost<1||cost>420){$('parentRewardStatus').textContent='보상 이름과 별 개수(1~420)를 입력해 주세요.';return;}
  const shop=rewardShopData();shop.rewards.push({id:'custom_reward_'+Date.now(),title,cost,desc});saveRewardShop(shop);
  $('parentRewardNewTitle').value='';$('parentRewardNewCost').value='';$('parentRewardNewDesc').value='';$('parentRewardStatus').textContent='새 보상을 추가했어요.';
 });
-$('parentRewardRequests').addEventListener('click',e=>{
+document.addEventListener('click',async e=>{if(!e.target.closest('#parentRewardRequests'))return;
  if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
  const approve=e.target.closest('[data-parent-approve]'),reject=e.target.closest('[data-parent-reject]'),used=e.target.closest('[data-parent-used]'),cancel=e.target.closest('[data-parent-cancel]');
  const btn=approve||reject||used||cancel;if(!btn)return;
@@ -1158,7 +1163,7 @@ $('parentRewardRequests').addEventListener('click',e=>{
   item.cost=cost;item.status='approved';item.approvedAt=new Date().toISOString();
  } else if(reject&&item.status==='pending') {item.status='rejected';item.rejectedAt=new Date().toISOString();}
  else if(used&&item.status==='approved') {item.status='used';item.usedAt=new Date().toISOString();}
- else if(cancel&&item.status==='approved') {if(!confirm('승인을 취소하고 차감된 별을 복구할까요?'))return;item.status='cancelled';item.cancelledAt=new Date().toISOString();}
+ else if(cancel&&item.status==='approved') {if(!await pageConfirm('승인을 취소하고 차감된 별을 복구할까요?'))return;item.status='cancelled';item.cancelledAt=new Date().toISOString();}
  saveRewardShop(shop);
 });
 $('sentenceList').addEventListener('click',e=>{

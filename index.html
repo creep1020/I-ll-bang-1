@@ -236,13 +236,14 @@ const DEFAULT_REWARDS=[
 function rewardShopData(){
  const saved=readMap(REWARD_SHOP_KEY);
  if(!Array.isArray(saved.rewards)) saved.rewards=DEFAULT_REWARDS.map(x=>({...x}));
+ saved.rewards=saved.rewards.filter(r=>!saved.deletedRewards?.[r.id]);
  if(!saved.requests||typeof saved.requests!=='object')saved.requests={};
  return saved;
 }
 function saveRewardShop(data){writeMap(REWARD_SHOP_KEY,data);if(window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(data).catch(e=>console.warn('공통 보상 저장 대기:',e));renderRewards();renderParentRewardShop();}
 let sharedRewardShopActive=false;
 window.ilbbangGetLocalRewardShop=()=>{const shop=rewardShopData();shop.earned={...(shop.earned||{})};if(!shop.resetAt)for(const k of Object.keys(starAwards()))shop.earned['book1-sequential|'+k]=true;return shop;};
-window.ilbbangOnSharedRewardShop=(data)=>{if(!data)return;sharedRewardShopActive=true;const local=rewardShopData();const merged={...data,rewards:Array.isArray(data.rewards)?data.rewards:local.rewards,requests:{...(local.requests||{}),...(data.requests||{})},earned:{...(data.earned||{})}};const missingLocalAwards=!merged.resetAt&&Object.keys(starAwards()).some(k=>!merged.earned['book1-sequential|'+k]);if(!merged.resetAt)for(const k of Object.keys(starAwards()))merged.earned['book1-sequential|'+k]=true;const missingLocalRequests=Object.keys(local.requests||{}).some(id=>!data.requests?.[id]);writeMap(REWARD_SHOP_KEY,merged);if((missingLocalAwards||missingLocalRequests||!Array.isArray(data.rewards))&&window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(merged).catch(e=>console.warn(e));renderRewards();renderParentRewardShop();};
+window.ilbbangOnSharedRewardShop=(data)=>{if(!data)return;sharedRewardShopActive=true;const local=rewardShopData();const deletedRewards={...(data.deletedRewards||{}),...(local.deletedRewards||{})};const merged={...data,deletedRewards,rewards:(Array.isArray(data.rewards)?data.rewards:local.rewards).filter(r=>!deletedRewards[r.id]),requests:{...(local.requests||{}),...(data.requests||{})},earned:{...(data.earned||{})}};const missingLocalAwards=!merged.resetAt&&Object.keys(starAwards()).some(k=>!merged.earned['book1-sequential|'+k]);if(!merged.resetAt)for(const k of Object.keys(starAwards()))merged.earned['book1-sequential|'+k]=true;const missingLocalRequests=Object.keys(local.requests||{}).some(id=>!data.requests?.[id]);writeMap(REWARD_SHOP_KEY,merged);if((missingLocalAwards||missingLocalRequests||Object.keys(deletedRewards).some(id=>!data.deletedRewards?.[id])||!Array.isArray(data.rewards))&&window.ilbbangSaveSharedRewardShop)window.ilbbangSaveSharedRewardShop(merged).catch(e=>console.warn(e));renderRewards();renderParentRewardShop();};
 function shopRequests(){return rewardShopData().requests||{}}
 function rewardStatusLabel(status){return ({pending:'부모님 확인 대기',approved:'승인 · 사용 가능',used:'사용 완료',rejected:'거절됨',cancelled:'취소됨'})[status]||'상태 확인 중'}
 function studyDates(){return [...new Set(Object.keys(readRecords()).filter(k=>readRecords()[k]===true).map(k=>k.split('|')[0]))].sort();}
@@ -1053,7 +1054,7 @@ function renderCalendar(){
  $('monthTitle').textContent=`${y}년 ${m+1}월 학습 기록`;
  let out=['일','월','화','수','목','금','토'].map(d=>`<div class="dow">${d}</div>`).join('');
  for(let i=0;i<first;i++)out+='<div></div>';
- for(let d=1;d<=last;d++){let dt=new Date(y,m,d),ds=iso(dt),done=Object.keys(r).some(k=>k.startsWith(ds+'|')&&r[k]),isToday=ds===iso(today);out+=`<div class="calday ${done?'done':''} ${isToday?'today':''}"><span>${d}</span><span>${done?'✓':''}</span></div>`;}
+ for(let d=1;d<=last;d++){const ds=iso(new Date(y,m,d)),days=[...new Set(Object.keys(r).filter(k=>k.startsWith(ds+'|')&&r[k]===true).map(k=>Number(k.split('|')[1])).filter(n=>Number.isInteger(n)&&n>=1&&n<=30))].sort((a,b)=>a-b),done=days.length>0,isToday=ds===iso(today);out+=`<div class="calday ${done?'done':''} ${isToday?'today':''}"><span>${d}</span>${days.map(n=>`<span style="font-size:10px;line-height:1.4;white-space:nowrap">DAY ${n} ✓</span>`).join('')}</div>`;}
  $('calendar').innerHTML=out;
 }
 for(let d=1;d<=30;d++){let o=document.createElement('option');o.value=d;o.textContent=`DAY ${d}`;$('daySelect').appendChild(o);}
@@ -1128,7 +1129,7 @@ $('parentRewardCatalog').addEventListener('click',e=>{
  const save=e.target.closest('[data-save-reward]'),del=e.target.closest('[data-delete-reward]');if(!save&&!del)return;
  if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
  const shop=rewardShopData();
- if(del){const id=del.dataset.deleteReward;if(Object.values(shop.requests).some(x=>x&&x.rewardId===id&&['pending','approved'].includes(x.status))){$('parentRewardStatus').textContent='신청 또는 사용 대기 중인 보상이 있어 삭제할 수 없어요.';return;}shop.rewards=shop.rewards.filter(x=>x.id!==id);saveRewardShop(shop);return;}
+ if(del){const id=del.dataset.deleteReward;shop.rewards=shop.rewards.filter(x=>x.id!==id);shop.deletedRewards={...(shop.deletedRewards||{}),[id]:true};saveRewardShop(shop);$('parentRewardStatus').textContent='보상 상품을 삭제했어요. 기존 신청 및 사용 기록은 유지됩니다.';return;}
  const id=save.dataset.saveReward,r=shop.rewards.find(x=>x.id===id);if(!r)return;
  const title=$('parentRewardCatalog').querySelector(`[data-edit-title="${CSS.escape(id)}"]`)?.value.trim();
  const cost=Number($('parentRewardCatalog').querySelector(`[data-edit-cost="${CSS.escape(id)}"]`)?.value);
@@ -1489,7 +1490,7 @@ function watchSharedProfiles() {
 window.ilbbangSaveSharedRewardShop = async function(localShop) {
  const linkedId=sharedAppLinks[sharedProfileLinkKey()];if(!currentUid||!syncReady||!linkedId||!localShop)return false;
  const ref=doc(db,'ilbbangShared',currentUid);
- await runTransaction(db,async transaction=>{const snap=await transaction.get(ref);const data=snap.exists()?snap.data():{};const all=data.rewardShop&&typeof data.rewardShop==='object'?{...data.rewardShop}:{};const remote=all[linkedId]&&typeof all[linkedId]==='object'?all[linkedId]:{};all[linkedId]={...remote,...localShop,rewards:Array.isArray(localShop.rewards)?localShop.rewards:(remote.rewards||[]),requests:{...(remote.requests||{}),...(localShop.requests||{})},earned:localShop.resetAt && Number(localShop.resetAt)>Number(remote.resetAt||0)?{...(localShop.earned||{})}:{...(remote.earned||{}),...(localShop.earned||{})},resetAt:Math.max(Number(remote.resetAt||0),Number(localShop.resetAt||0))};transaction.set(ref,{rewardShop:all,updatedAt:serverTimestamp()},{merge:true});});return true;
+ await runTransaction(db,async transaction=>{const snap=await transaction.get(ref);const data=snap.exists()?snap.data():{};const all=data.rewardShop&&typeof data.rewardShop==='object'?{...data.rewardShop}:{};const remote=all[linkedId]&&typeof all[linkedId]==='object'?all[linkedId]:{};const deletedRewards={...(remote.deletedRewards||{}),...(localShop.deletedRewards||{})};all[linkedId]={...remote,...localShop,deletedRewards,rewards:(Array.isArray(localShop.rewards)?localShop.rewards:(remote.rewards||[])).filter(r=>!deletedRewards[r.id]),requests:{...(remote.requests||{}),...(localShop.requests||{})},earned:localShop.resetAt && Number(localShop.resetAt)>Number(remote.resetAt||0)?{...(localShop.earned||{})}:{...(remote.earned||{}),...(localShop.earned||{})},resetAt:Math.max(Number(remote.resetAt||0),Number(localShop.resetAt||0))};transaction.set(ref,{rewardShop:all,updatedAt:serverTimestamp()},{merge:true});});return true;
 };
 window.ilbbangRecordSharedStarAward = async function(awardId) {
  const linkedId=sharedAppLinks[sharedProfileLinkKey()];if(!currentUid||!syncReady||!linkedId||!awardId)return false;

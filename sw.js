@@ -33,7 +33,7 @@ messaging.onBackgroundMessage(payload => {
 });
 
 // v10: 최신 HTML 배포본 우선 적용
-const CACHE = 'ilppang-seq-v13-fcm';
+const CACHE = 'ilppang-seq-v14-fcm';
 
 const FILES = [
   './',

@@ -1086,12 +1086,15 @@ $('sentenceList').addEventListener('change',e=>{
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
 const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),profileId:$('profileSelect')?.value||'',data};}
-$('exportBackup').onclick=async()=>{
- try{const payload=collectBackup(),text=JSON.stringify(payload,null,2);$('backupText').value=text;$('backupDetails').open=true;const file=new File([text],`ilbbang_backup_${iso(new Date())}.json`,{type:'application/json'});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'일빵빵 학습 백업'});$('backupStatus').textContent='공유 화면을 열었어요. 저장 위치를 확인해 주세요.';return;}const url=URL.createObjectURL(file);const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$('backupStatus').textContent='다운로드를 요청했어요. 내 파일에서 확인하세요. 없으면 백업 코드를 사용하세요.';}
- catch(err){$('backupStatus').textContent='파일 저장이 완료되지 않았어요. 백업 코드를 이용하세요.';}
+window.onNativeBackupStatus = message => {$('backupStatus').textContent=message;};
+$('exportBackup').onclick=()=>{
+ try{const text=JSON.stringify(collectBackup(),null,2),name=`ilbbang_backup_${iso(new Date())}.json`;$('backupText').value=text;
+ if(typeof window.IlbbangAndroid?.saveBackup==='function'){window.IlbbangAndroid.saveBackup(text,name);return;}
+ const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(url)},60000);$('backupStatus').textContent='다운로드를 요청했어요. 크롬 다운로드 목록에서 확인하세요.';
+ }catch(err){$('backupStatus').textContent='저장 실패: '+err.message;}
 };
 $('backupCopy').onclick=async()=>{const t=$('backupText');t.value=JSON.stringify(collectBackup());t.focus();t.select();try{await navigator.clipboard.writeText(t.value);$('backupStatus').textContent='백업 코드를 복사했어요.';}catch(e){$('backupStatus').textContent='선택된 코드를 길게 눌러 복사하세요.';}};
-$('importBackup').onclick=()=>{$('backupDetails').open=true;$('backupFile').value='';$('backupFile').style.cssText='display:block;width:100%;margin-top:8px';$('backupFile').click();$('backupStatus').textContent='파일 선택창이 열리지 않으면 크롬에서 앱 주소를 열거나 백업 코드로 복원하세요.';};
+$('importBackup').onclick=()=>{$('backupFile').value='';$('backupFile').style.cssText='display:block;width:100%;margin-top:8px';$('backupFile').click();$('backupStatus').textContent='파일 선택창이 열리지 않으면 크롬에서 앱 주소를 열거나 백업 코드로 복원하세요.';};
 function pageConfirm(message){return new Promise(resolve=>{const overlay=document.createElement('div');overlay.style.cssText='position:fixed;inset:0;z-index:100000;background:#0008;display:grid;place-items:center;padding:20px';const card=document.createElement('div');card.style.cssText='background:white;border-radius:16px;padding:20px;max-width:360px;width:100%';const text=document.createElement('p');text.textContent=message;const cancel=document.createElement('button'),ok=document.createElement('button');cancel.textContent='취소';ok.textContent='확인';ok.style.marginLeft='10px';const finish=v=>{overlay.remove();resolve(v)};cancel.onclick=()=>finish(false);ok.onclick=()=>finish(true);card.append(text,cancel,ok);overlay.append(card);document.body.append(overlay);});}
 async function restoreBackupText(text){
  try{const obj=JSON.parse(text);if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');

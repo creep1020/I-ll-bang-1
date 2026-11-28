@@ -148,10 +148,10 @@ if ('serviceWorker' in navigator) {
 <strong style="font-size:14px">💾 학습 기록 백업 · 복원</strong>
 <p class="small" style="margin:8px 0 12px">학습 완료 날짜, 문장별 체크, 복습 목록, 학습 시작일, 음성 속도를 파일로 저장하고 다른 휴대폰에서도 복원할 수 있어요.</p>
 <div class="actions"><button class="primary" id="exportBackup">백업 파일 저장</button><button id="importBackup">백업 파일 불러오기</button></div>
-<input type="file" id="backupFile" accept="application/json,.json" style="display:none">
-<div class="small" id="backupStatus" aria-live="polite" style="margin-top:9px">기기 변경이나 앱 초기화 전에 백업해 주세요.</div>
+<input type="file" id="backupFile" accept="application/json,.json" style="position:absolute;width:1px;height:1px;opacity:0">
+<details style="margin-top:10px"><summary>파일 저장이 안 될 때 · 백업 코드</summary><textarea id="backupText" rows="5" style="width:100%;margin-top:8px" placeholder="백업 코드를 복사하거나 붙여넣으세요"></textarea><div class="actions"><button id="backupCopy">코드 만들기·복사</button><button id="backupPasteRestore">코드로 복원</button></div></details><div class="small" id="backupStatus" aria-live="polite" style="margin-top:9px">기기 변경이나 앱 초기화 전에 백업해 주세요.</div>
 </section>
-<section class="panel" id="cloudPanel">
+<section class="panel" id="cloudPanel" style="display:none!important">
 <strong style="font-size:14px">👨‍👧 부모 · 자녀 학습 공유</strong>
 <p class="small" style="margin:8px 0 0">같은 공용 계정으로 로그인하고 프로필을 선택하면 가족 구성원별 학습 기록을 따로 관리할 수 있어요.</p>
 <div class="status" style="margin-top:10px">프로필마다 학습 진도, 완료 기록, 연속 학습, 별 포인트, 배지와 복습 목록이 분리됩니다. 기존 기록은 첫 프로필로 보존해 옮깁니다.</div>
@@ -1055,7 +1055,7 @@ function renderCalendar(){
  let out=['일','월','화','수','목','금','토'].map(d=>`<div class="dow">${d}</div>`).join('');
  for(let i=0;i<first;i++)out+='<div></div>';
  for(let d=1;d<=last;d++){const ds=iso(new Date(y,m,d)),days=[...new Set(Object.keys(r).filter(k=>k.startsWith(ds+'|')&&r[k]===true).map(k=>Number(k.split('|')[1])).filter(n=>Number.isInteger(n)&&n>=1&&n<=30))].sort((a,b)=>a-b),done=days.length>0,isToday=ds===iso(today);out+=`<div class="calday ${done?'done':''} ${isToday?'today':''}"><span>${d}</span>${days.map(n=>`<span style="font-size:10px;line-height:1.4;white-space:nowrap">DAY ${n} ✓</span>`).join('')}</div>`;}
- $('calendar').innerHTML=out;
+ $('calendar').innerHTML=out;let detail=$('dayHistoryDetail');if(!detail){detail=document.createElement('div');detail.id='dayHistoryDetail';detail.className='status';$('calendar').after(detail);}const prefix=`${y}-${String(m+1).padStart(2,'0')}-`;const rows=Object.keys(r).filter(k=>k.startsWith(prefix)&&r[k]===true&&/^\d{4}-\d{2}-\d{2}\|\d+$/.test(k)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));detail.textContent=rows.length?rows.map(k=>{const [date,day]=k.split('|');return `${date.slice(5)} · DAY ${day} ✓`;}).join('\n'):'이번 달 완료한 DAY가 없어요.';detail.style.whiteSpace='pre-line';
 }
 for(let d=1;d<=30;d++){let o=document.createElement('option');o.value=d;o.textContent=`DAY ${d}`;$('daySelect').appendChild(o);}
 $('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
@@ -1081,17 +1081,18 @@ $('sentenceList').addEventListener('change',e=>{
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
 const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
-function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),data};}
-$('exportBackup').onclick=()=>{
- try{const payload=collectBackup();const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`일빵빵_학습기록_백업_${iso(new Date())}.json`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);$('backupStatus').textContent='백업 파일을 저장했어요. 파일을 안전한 곳에 보관해 주세요.';}
- catch(err){$('backupStatus').textContent='백업 파일을 만들지 못했어요: '+err.message;}
+function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),profileId:$('profileSelect')?.value||'',data};}
+$('exportBackup').onclick=async()=>{
+ try{const payload=collectBackup(),text=JSON.stringify(payload,null,2);$('backupText').value=text;const file=new File([text],`ilbbang_backup_${iso(new Date())}.json`,{type:'application/json'});if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'일빵빵 학습 백업'});$('backupStatus').textContent='공유 화면을 열었어요. 저장 위치를 확인해 주세요.';return;}const url=URL.createObjectURL(file);const a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$('backupStatus').textContent='다운로드를 요청했어요. 내 파일에서 확인하세요. 없으면 백업 코드를 사용하세요.';}
+ catch(err){$('backupStatus').textContent='파일 저장이 완료되지 않았어요. 백업 코드를 이용하세요.';}
 };
-$('importBackup').onclick=()=>$('backupFile').click();
-$('backupFile').onchange=async e=>{
- const file=e.target.files&&e.target.files[0];if(!file)return;
- try{const obj=JSON.parse(await file.text());if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
+$('backupCopy').onclick=async()=>{const t=$('backupText');t.value=JSON.stringify(collectBackup());t.focus();t.select();try{await navigator.clipboard.writeText(t.value);$('backupStatus').textContent='백업 코드를 복사했어요.';}catch(e){$('backupStatus').textContent='선택된 코드를 길게 눌러 복사하세요.';}};
+$('importBackup').onclick=()=>{$('backupFile').value='';$('backupFile').click();$('backupStatus').textContent='파일 선택창이 열리지 않으면 백업 코드로 복원하세요.';};
+async function restoreBackupText(text){
+ try{const obj=JSON.parse(text);if(obj.app!=='ilbbangSeq600'||!obj.data||typeof obj.data!=='object')throw new Error('일빵빵 백업 파일이 아닙니다.');
+ if(obj.profileId && $('profileSelect')?.value && obj.profileId!==$('profileSelect').value)throw new Error('다른 프로필의 백업입니다. 해당 프로필을 먼저 선택하세요.');
   const valid=['ilbbangSeq600Records','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
-  for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
+  for(const k of valid){if(obj.data[k]!==undefined){const parsed=JSON.parse(obj.data[k]);if(!parsed||typeof parsed!=='object')throw new Error('백업 데이터 형식이 올바르지 않습니다.');}}
   if(obj.data.ilbbangSeq600Start!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(obj.data.ilbbangSeq600Start))throw new Error('학습 시작일 데이터가 올바르지 않습니다.');
   if(obj.data.ilbbangSeqVoiceRate!==undefined&&(!Number.isFinite(Number(obj.data.ilbbangSeqVoiceRate))||Number(obj.data.ilbbangSeqVoiceRate)<0.5||Number(obj.data.ilbbangSeqVoiceRate)>2))throw new Error('음성 속도 데이터가 올바르지 않습니다.');
   if(!confirm('현재 이 휴대폰의 일빵빵 학습 기록을 백업 파일의 기록으로 덮어쓸까요? 백업에 없는 항목은 현재 값을 유지합니다.'))return;
@@ -1100,8 +1101,9 @@ $('backupFile').onchange=async e=>{
   const rate=localStorage.getItem('ilbbangSeqVoiceRate');if(rate){$('voiceRate').value=rate;$('rateLabel').textContent=Number(rate).toFixed(2)+'배';}
   previewDay=null;render();$('backupStatus').textContent='백업 기록을 복원했어요. 학습 달력과 문장 체크를 확인해 보세요.';
  }catch(err){$('backupStatus').textContent='복원 실패: '+err.message;}
- finally{e.target.value='';}
-};
+}
+$('backupFile').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{await restoreBackupText(await f.text());}catch(err){$('backupStatus').textContent='파일 읽기 실패: '+err.message;}finally{e.target.value='';}};
+$('backupPasteRestore').onclick=()=>restoreBackupText($('backupText').value);
 
 $('rewardOptions').addEventListener('click',e=>{
  const btn=e.target.closest('[data-reward]');if(!btn)return;
@@ -1127,9 +1129,9 @@ $('childRewardHistory').addEventListener('click',e=>{
 });
 $('parentRewardCatalog').addEventListener('click',e=>{
  const save=e.target.closest('[data-save-reward]'),del=e.target.closest('[data-delete-reward]');if(!save&&!del)return;
- if(window.ilbbangIsParentSettingsUnlocked?.()!==true)return;
+ if(window.ilbbangIsParentSettingsUnlocked?.()!==true){$('parentRewardStatus').textContent='부모 PIN을 먼저 해제해 주세요.';return;}
  const shop=rewardShopData();
- if(del){const id=del.dataset.deleteReward;shop.rewards=shop.rewards.filter(x=>x.id!==id);shop.deletedRewards={...(shop.deletedRewards||{}),[id]:true};saveRewardShop(shop);$('parentRewardStatus').textContent='보상 상품을 삭제했어요. 기존 신청 및 사용 기록은 유지됩니다.';return;}
+ if(del){e.preventDefault();const id=del.dataset.deleteReward;shop.rewards=shop.rewards.filter(x=>x.id!==id);shop.deletedRewards={...(shop.deletedRewards||{}),[id]:true};saveRewardShop(shop);$('parentRewardStatus').textContent='보상 상품을 삭제했어요. 기존 신청 및 사용 기록은 유지됩니다.';return;}
  const id=save.dataset.saveReward,r=shop.rewards.find(x=>x.id===id);if(!r)return;
  const title=$('parentRewardCatalog').querySelector(`[data-edit-title="${CSS.escape(id)}"]`)?.value.trim();
  const cost=Number($('parentRewardCatalog').querySelector(`[data-edit-cost="${CSS.escape(id)}"]`)?.value);
@@ -1917,7 +1919,7 @@ async function saveCloudSnapshot(reason = '자동') {
 function scheduleCloudSave() {
   if (!syncReady || suppressSync || switchingProfile) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveCloudSnapshot('auto'), 700);
+  saveTimer = setTimeout(async () => {try{await saveCloudSnapshot('auto');}finally{saveTimer=null;}}, 700);
 }
 const originalSetItem = Storage.prototype.setItem;
 Storage.prototype.setItem = function(key, value) {
@@ -1990,6 +1992,7 @@ async function loadAndMergeCloud(user) {
       if (!incoming) return;
       const incomingText = JSON.stringify(incoming);
       if (incomingText === JSON.stringify(lastCloudData)) return;
+      if(saveTimer){return;}
       lastCloudData = incoming;
       profileData[activeProfileId] = incoming;
       applySnapshot(incoming);

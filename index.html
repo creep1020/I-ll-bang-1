@@ -186,13 +186,13 @@ let previewDay=null,viewMode='ko',calendarDate=new Date(today.getFullYear(),toda
 const RECORD_EDITS_KEY='ilbbangSeq600RecordEdits';
 function readRecords(){try{const r=JSON.parse(localStorage.getItem('ilbbangSeq600Records')||'{}');for(const [k,v] of Object.entries(readMap(RECORD_EDITS_KEY)))if(v.done)r[k]=true;else delete r[k];return r}catch(e){return {}}}
 function changeRecords(next){const old=readRecords(),edits=readMap(RECORD_EDITS_KEY);for(const k of new Set([...Object.keys(old),...Object.keys(next)]))if(!!old[k]!==!!next[k])edits[k]={done:!!next[k],at:Date.now()};writeMap(RECORD_EDITS_KEY,edits);writeMap('ilbbangSeq600Records',next);}
-function editStudyRecords(){if(!window.ilbbangIsParentSettingsUnlocked?.()){alert('부모 설정에서 PIN 인증 후 수정해 주세요.');return;}const date=prompt('수정할 날짜 (YYYY-MM-DD)',iso(today));if(!date)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date){alert('날짜를 확인해 주세요.');return;}const old=readRecords();const prior=Object.keys(old).filter(k=>k.startsWith(date+'|')&&old[k]).map(k=>k.split('|')[1]);const input=prompt('완료 DAY 번호를 쉼표로 입력하세요. 모두 삭제하려면 빈칸으로 저장하세요.',prior.join(','));if(input===null)return;const days=input.trim()?input.split(',').map(x=>Number(x.trim())):[];if(days.some(d=>!Number.isInteger(d)||d<1||d>30)){alert('DAY 1~30만 입력하세요.');return;}if(!confirm(date+' 기록을 DAY '+([...new Set(days)].join(', ')||'없음')+'으로 변경할까요? 별과 캐릭터는 유지됩니다.'))return;const next={...old};for(const k of Object.keys(next))if(k.startsWith(date+'|'))delete next[k];for(const d of days)next[date+'|'+d]=true;changeRecords(next);render();}
+function editStudyRecords(){const panel=$('parentSettingsPanel');if(panel){if(panel.style.display==='none')$('parentSettingsOpen').click();panel.scrollIntoView({behavior:'smooth',block:'start'});}else alert('로그인 후 부모 관리에서 수정해 주세요.');}
 
 function startDate(){let v=$('startDate').value||localStorage.getItem('ilbbangSeq600Start')||iso(today);return new Date(v+'T00:00:00')}
 function dayCompleted(day,records=readRecords()){return Object.keys(records).some(k=>records[k]===true&&Number(k.split("|")[1])===day)}
 function currentDay(){if(previewDay!==null)return previewDay;for(let d=1;d<=30;d++)if(!dayCompleted(d))return d;return 30}
 function key(date,day){return date+'|'+day}
-function selectedDate(){return previewDay===null?iso(today):null}
+function selectedDate(){return iso(today)}
 let listMode='all';
 function readMap(name){try{return JSON.parse(localStorage.getItem(name)||'{}')}catch(e){return {}}}
 function writeMap(name,obj){localStorage.setItem(name,JSON.stringify(obj))}
@@ -841,8 +841,9 @@ function render(){
  const reviewModeNow=due.length?'scheduled':dailyPending.length?'daily':null;
  const reviewItems=due.length?due:dailyPending;
  const reviewLocked=!!reviewModeNow;
- $('dayBadge').textContent=`DAY ${day} / 30`;
+ $('dayBadge').textContent=`DAY ${day} / 30 · v17`;
  $('dateLabel').textContent=today.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
+ for(const o of $('daySelect').options)o.textContent='DAY '+o.value+(dayCompleted(Number(o.value),records)?' ✓':'');
  $('daySelect').value=String(day);
  $('prevDay').disabled=day===1;$('nextDay').disabled=day===30;
  $('startDate').disabled=false;$('apply').disabled=false;$('today').disabled=false;$('daySelect').disabled=false;
@@ -1068,9 +1069,9 @@ for(let d=1;d<=30;d++){let o=document.createElement('option');o.value=d;o.textCo
 $('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
 $('apply').onclick=()=>{localStorage.setItem('ilbbangSeq600Start',$('startDate').value);previewDay=null;render()};
 $('today').onclick=()=>{previewDay=null;render();window.scrollTo({top:0,behavior:'smooth'})};
-$('prevDay').onclick=()=>{previewDay=Math.max(1,currentDay()-1);render()};
-$('nextDay').onclick=()=>{previewDay=Math.min(30,currentDay()+1);render()};
-$('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
+$('prevDay').onclick=()=>{if(activeNo!==null){$('daySelect').value=String(currentDay());return;}previewDay=Math.max(1,currentDay()-1);render()};
+$('nextDay').onclick=()=>{if(activeNo!==null){$('daySelect').value=String(currentDay());return;}previewDay=Math.min(30,currentDay()+1);render()};
+$('daySelect').onchange=()=>{if(activeNo!==null){$('daySelect').value=String(currentDay());return;}previewDay=Number($('daySelect').value);render()};
 $('koreanBtn').onclick=()=>{viewMode='ko';render()};
 $('englishBtn').onclick=()=>{viewMode='en';render()};
 $('bothBtn').onclick=()=>{viewMode='both';render()};
@@ -1355,6 +1356,7 @@ panel.innerHTML = `
           <button id="pinUnlock" type="button" class="primary">잠금 해제</button>
         </div>
         <div id="parentSettingsArea" style="display:none;margin-top:12px">
+<section style="padding:12px;border:1px solid #ccc;border-radius:12px;margin-bottom:12px"><strong>학습 기록 수정</strong><div class="small">날짜와 DAY(여러 개 선택 가능)를 선택해 완료 기록을 추가하거나 삭제하세요. 별과 캐릭터는 변경하지 않습니다.</div><input id="historyEditDate" type="date" style="width:100%"><select id="historyEditDay" multiple size="5" style="width:100%">${Array.from({length:30},(_,i)=>`<option value="${i+1}">DAY ${i+1}</option>`).join('')}</select><div class="controls"><button id="historyAdd">완료 추가</button><button id="historyRemove">완료 삭제</button></div><button id="historyReplace" type="button">선택한 DAY로 날짜 기록 변경</button><div id="historyEditStatus" class="small"></div></section>
           <section style="margin:0 0 16px;padding:12px;border:1px solid #b8c9e8;border-radius:12px;background:#f7f9ff">
             <strong style="font-size:15px">👨‍👩‍👧‍👦 부모 관리</strong>
             <div class="small" style="margin:6px 0 10px">가족 프로필 연결과 앱 관리 기능을 이곳에서 설정합니다.</div>
@@ -1713,10 +1715,27 @@ async function loadParentNotifySettings() {
     $login('notifyStatus').textContent = '알림 설정을 불러오지 못했어요. Firestore 보안 규칙을 확인해 주세요.';
   }
 }
+$login('historyEditDate').value=iso(today);
+$login('historyEditDate').max=iso(today);
+function refreshHistorySelection(){const date=$login('historyEditDate').value,r=readRecords();for(const o of $login('historyEditDay').options)o.selected=!!r[key(date,Number(o.value))];}
+$login('historyEditDate').onchange=refreshHistorySelection;
+function editHistory(mode){
+ if(!parentSettingsUnlocked)return;
+ const profile=activeProfileId,date=$login('historyEditDate').value,days=Array.from($login('historyEditDay').selectedOptions,o=>Number(o.value)),out=$login('historyEditStatus');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date>iso(today)||(!days.length&&mode!=='replace')){out.textContent='날짜와 DAY를 확인하세요.';return;}
+ if(!confirm(`${date} ${days.map(d=>'DAY '+d).join(', ')||'전체'} 기록을 ${mode==='add'?'추가':mode==='remove'?'삭제':'변경'}할까요? 별과 캐릭터는 유지됩니다.`))return;
+ if(!parentSettingsUnlocked||profile!==activeProfileId)return;
+ const r=readRecords();if(mode==='replace')for(const k of Object.keys(r))if(k.startsWith(date+'|'))delete r[k];
+ for(const d of days){if(mode==='remove')delete r[key(date,d)];else r[key(date,d)]=true;}
+ changeRecords(r);render();refreshHistorySelection();out.textContent='학습 기록을 수정했어요.';
+}
+$login('historyAdd').onclick=()=>editHistory('add');
+$login('historyRemove').onclick=()=>editHistory('remove');
+$login('historyReplace').onclick=()=>editHistory('replace');
 $login('parentSettingsOpen').onclick = () => {
   const box = $login('parentSettingsPanel');
   box.style.display = box.style.display === 'none' ? 'block' : 'none';
-  if (box.style.display === 'block') showParentPinState();
+  if (box.style.display === 'block') {showParentPinState();refreshHistorySelection();}
 };
 $login('pinSave').onclick = async () => {
   const pin = $login('pinCreate').value, confirmPin = $login('pinConfirm').value;

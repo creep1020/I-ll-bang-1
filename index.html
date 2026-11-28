@@ -183,7 +183,11 @@ const $=id=>document.getElementById(id);
 const today=new Date();today.setHours(0,0,0,0);
 const iso=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
 let previewDay=null,viewMode='ko',calendarDate=new Date(today.getFullYear(),today.getMonth(),1);
-function readRecords(){try{return JSON.parse(localStorage.getItem('ilbbangSeq600Records')||'{}')}catch(e){return {}}}
+const RECORD_EDITS_KEY='ilbbangSeq600RecordEdits';
+function readRecords(){try{const r=JSON.parse(localStorage.getItem('ilbbangSeq600Records')||'{}');for(const [k,v] of Object.entries(readMap(RECORD_EDITS_KEY)))if(v.done)r[k]=true;else delete r[k];return r}catch(e){return {}}}
+function changeRecords(next){const old=readRecords(),edits=readMap(RECORD_EDITS_KEY);for(const k of new Set([...Object.keys(old),...Object.keys(next)]))if(!!old[k]!==!!next[k])edits[k]={done:!!next[k],at:Date.now()};writeMap(RECORD_EDITS_KEY,edits);writeMap('ilbbangSeq600Records',next);}
+function editStudyRecords(){if(!window.ilbbangIsParentSettingsUnlocked?.()){alert('부모 설정에서 PIN 인증 후 수정해 주세요.');return;}const date=prompt('수정할 날짜 (YYYY-MM-DD)',iso(today));if(!date)return;if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date+'T00:00:00Z').toISOString().slice(0,10)!==date){alert('날짜를 확인해 주세요.');return;}const old=readRecords();const prior=Object.keys(old).filter(k=>k.startsWith(date+'|')&&old[k]).map(k=>k.split('|')[1]);const input=prompt('완료 DAY 번호를 쉼표로 입력하세요. 모두 삭제하려면 빈칸으로 저장하세요.',prior.join(','));if(input===null)return;const days=input.trim()?input.split(',').map(x=>Number(x.trim())):[];if(days.some(d=>!Number.isInteger(d)||d<1||d>30)){alert('DAY 1~30만 입력하세요.');return;}if(!confirm(date+' 기록을 DAY '+([...new Set(days)].join(', ')||'없음')+'으로 변경할까요? 별과 캐릭터는 유지됩니다.'))return;const next={...old};for(const k of Object.keys(next))if(k.startsWith(date+'|'))delete next[k];for(const d of days)next[date+'|'+d]=true;changeRecords(next);render();}
+
 function startDate(){let v=$('startDate').value||localStorage.getItem('ilbbangSeq600Start')||iso(today);return new Date(v+'T00:00:00')}
 function dayCompleted(day,records=readRecords()){return Object.keys(records).some(k=>records[k]===true&&Number(k.split("|")[1])===day)}
 function currentDay(){if(previewDay!==null)return previewDay;for(let d=1;d<=30;d++)if(!dayCompleted(d))return d;return 30}
@@ -840,8 +844,8 @@ function render(){
  $('dayBadge').textContent=`DAY ${day} / 30`;
  $('dateLabel').textContent=today.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
  $('daySelect').value=String(day);
- $('prevDay').disabled=day===1||reviewLocked;$('nextDay').disabled=day===30||reviewLocked;
- $('startDate').disabled=reviewLocked;$('apply').disabled=reviewLocked;$('today').disabled=reviewLocked;$('daySelect').disabled=reviewLocked;
+ $('prevDay').disabled=day===1;$('nextDay').disabled=day===30;
+ $('startDate').disabled=false;$('apply').disabled=false;$('today').disabled=false;$('daySelect').disabled=false;
  const todayChecked=data.items.filter(x=>checked[x.no]).length;
  $('progressBar').style.width=(todayChecked/data.items.length*100)+'%';
  $('progressLabel').textContent=`오늘 문장 학습 ${todayChecked}/${data.items.length}개 완료 · DAY ${day}/30`;
@@ -890,20 +894,20 @@ function render(){
  });
  $('koreanBtn').classList.toggle('active',viewMode==='ko');$('englishBtn').classList.toggle('active',viewMode==='en');$('bothBtn').classList.toggle('active',viewMode==='both');
  $('reviewGatePanel').style.display=reviewLocked?'block':'none';
- $('dayControlsPanel').style.display=reviewLocked?'none':'block';
- $('studyViewToggle').style.display=reviewLocked?'none':'flex';
- $('voiceSettingsPanel').style.display=reviewLocked?'none':'block';
- $('sentenceStudyPanel').style.display=reviewLocked?'none':'block';
- $('studyActionsPanel').style.display=reviewLocked?'none':'block';
+ $('dayControlsPanel').style.display='block';
+ $('studyViewToggle').style.display='flex';
+ $('voiceSettingsPanel').style.display='block';
+ $('sentenceStudyPanel').style.display='block';
+ $('studyActionsPanel').style.display='block';
  if(reviewLocked){reviewMode=reviewModeNow;renderReviewGate(reviewItems,reviewModeNow);}
- $('markDone').disabled=done||!allSentencesDone||!allSpeakingPassed||reviewLocked;
+ $('markDone').disabled=done||!allSentencesDone||!allSpeakingPassed;
  $('markDone').textContent=done?'✓ 오늘 학습 완료했어요':!allSentencesDone?'문장 학습을 모두 완료해 주세요':!allSpeakingPassed?'모든 문장의 녹음 통과가 필요해요':'✓ 오늘 학습 완료';
- $('undoDone').disabled=!done;
+ $('undoDone').disabled=false;
  $('bonusGameWrap').style.display='block';
  $('bonusGameBtn').disabled=!done;
  $('bonusGameBtn').textContent=done?'🎁 보너스 미니게임 1분 도전하기':'🔒 오늘 학습 완료 후 보너스 게임 열기';
  $('bonusGameHint').textContent=done?'오늘 학습을 완료했어요! 1분 보너스 게임을 할 수 있어요.':'오늘의 20문장 학습을 완료하면 1분 보너스 게임이 열려요.';
- $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개를 먼저 통과해야 새 학습을 시작할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone&&!allSpeakingPassed?`문장 학습은 체크했어요. 녹음 통과 ${data.items.filter(x=>speaking[speakingKey(x.no)]?.passed).length}/${data.items.length}개가 필요해요.`:allSentencesDone?'모든 문장을 학습하고 녹음도 통과했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
+ $('studyStatus').textContent=reviewModeNow==='scheduled'?`오늘 복습할 문장 ${due.length}개가 있어요. DAY 학습도 자유롭게 선택할 수 있어요.`:reviewModeNow==='daily'?`오늘 추가한 복습 문장 ${dailyPending.length}개를 순서대로 통과하면 오늘 학습을 완료할 수 있어요.`:done?'오늘 학습 완료 기록이 저장되어 있어요. 달력에서 확인할 수 있습니다.':allSentencesDone&&!allSpeakingPassed?`문장 학습은 체크했어요. 녹음 통과 ${data.items.filter(x=>speaking[speakingKey(x.no)]?.passed).length}/${data.items.length}개가 필요해요.`:allSentencesDone?'모든 문장을 학습하고 녹음도 통과했어요! 이제 오늘 학습 완료를 누를 수 있어요.':`문장별 학습 완료를 먼저 체크해 주세요. (${todayChecked}/${data.items.length})`;
  renderCalendar();
  
  renderRewards();
@@ -1058,7 +1062,7 @@ function renderCalendar(){
  let out=['일','월','화','수','목','금','토'].map(d=>`<div class="dow">${d}</div>`).join('');
  for(let i=0;i<first;i++)out+='<div></div>';
  for(let d=1;d<=last;d++){const ds=iso(new Date(y,m,d)),days=[...new Set(Object.keys(r).filter(k=>k.startsWith(ds+'|')&&r[k]===true).map(k=>Number(k.split('|')[1])).filter(n=>Number.isInteger(n)&&n>=1&&n<=30))].sort((a,b)=>a-b),done=days.length>0,isToday=ds===iso(today);out+=`<div class="calday ${done?'done':''} ${isToday?'today':''}"><span>${d}</span>${days.map(n=>`<span style="font-size:10px;line-height:1.4;white-space:nowrap">DAY ${n} ✓</span>`).join('')}</div>`;}
- $('calendar').innerHTML=out;let detail=$('dayHistoryDetail');if(!detail){detail=document.createElement('div');detail.id='dayHistoryDetail';detail.className='status';$('calendar').after(detail);}const prefix=`${y}-${String(m+1).padStart(2,'0')}-`;const rows=Object.keys(r).filter(k=>k.startsWith(prefix)&&r[k]===true&&/^\d{4}-\d{2}-\d{2}\|\d+$/.test(k)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));detail.textContent=rows.length?rows.map(k=>{const [date,day]=k.split('|');return `${date.slice(5)} · DAY ${day} ✓`;}).join('\n'):'이번 달 완료한 DAY가 없어요.';detail.style.whiteSpace='pre-line';
+ $('calendar').innerHTML=out; $('monthTitle').textContent+=` · 누적 ${new Set(Object.keys(r).filter(k=>r[k]).map(k=>k.split('|')[1])).size}/30 DAY`;let detail=$('dayHistoryDetail');if(!detail){detail=document.createElement('div');detail.id='dayHistoryDetail';detail.className='status';$('calendar').after(detail);}const prefix=`${y}-${String(m+1).padStart(2,'0')}-`;const rows=Object.keys(r).filter(k=>k.startsWith(prefix)&&r[k]===true&&/^\d{4}-\d{2}-\d{2}\|\d+$/.test(k)).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));detail.textContent=rows.length?rows.map(k=>{const [date,day]=k.split('|');return `${date.slice(5)} · DAY ${day} ✓`;}).join('\n'):'이번 달 완료한 DAY가 없어요.';detail.style.whiteSpace='pre-line';
 }
 for(let d=1;d<=30;d++){let o=document.createElement('option');o.value=d;o.textContent=`DAY ${d}`;$('daySelect').appendChild(o);}
 $('startDate').value=localStorage.getItem('ilbbangSeq600Start')||iso(today);
@@ -1070,8 +1074,8 @@ $('daySelect').onchange=()=>{previewDay=Number($('daySelect').value);render()};
 $('koreanBtn').onclick=()=>{viewMode='ko';render()};
 $('englishBtn').onclick=()=>{viewMode='en';render()};
 $('bothBtn').onclick=()=>{viewMode='both';render()};
-$('markDone').onclick=()=>{if(dueReviewItems().length||todayDailyReviewItems().length){alert('오늘 복습할 문장을 먼저 모두 통과해 주세요.');render();return;}const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked'),speaking=speakingPasses();if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}if(!items.every(x=>!!speaking[speakingKey(x.no)]?.passed)){alert('오늘의 모든 문장을 한 번씩 녹음해야 완료할 수 있어요.');render();return;}const d=currentDay();if(dayCompleted(d))return;previewDay=d;let r=readRecords();r[key(iso(today),d)]=true;localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));awardToday(true);render()};
-$('undoDone').onclick=()=>{let r=readRecords();const d=currentDay();previewDay=d;for(const k of Object.keys(r))if(Number(k.split('|')[1])===d)delete r[k];localStorage.setItem('ilbbangSeq600Records',JSON.stringify(r));render()};
+$('markDone').onclick=()=>{const items=DATA[currentDay()-1].items;const checked=readMap('ilbbangSeq600Checked'),speaking=speakingPasses();if(!items.every(x=>!!checked[x.no])){alert('오늘의 문장 학습을 모두 체크한 뒤 완료할 수 있어요.');render();return;}if(!items.every(x=>!!speaking[speakingKey(x.no)]?.passed)){alert('오늘의 모든 문장을 한 번씩 녹음해야 완료할 수 있어요.');render();return;}const d=currentDay();if(dayCompleted(d))return;previewDay=d;let r=readRecords();r[key(iso(today),d)]=true;changeRecords(r);awardToday(true);render()};
+$('undoDone').onclick=editStudyRecords; $('undoDone').textContent='부모 학습 기록 수정';
 $('prevMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()-1,1);renderCalendar()};
 $('nextMonth').onclick=()=>{calendarDate=new Date(calendarDate.getFullYear(),calendarDate.getMonth()+1,1);renderCalendar()};
 $('showAll').onclick=()=>{listMode='all';render()};
@@ -1084,7 +1088,7 @@ $('sentenceList').addEventListener('change',e=>{
 });
 
 // 백업/복원: 이 앱의 학습 관련 데이터만 다루며 다른 사이트의 저장 데이터는 건드리지 않습니다.
-const BACKUP_KEYS=['ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
+const BACKUP_KEYS=[RECORD_EDITS_KEY,'ilbbangSeq600Records','ilbbangSeq600Start','ilbbangSeq600Checked','ilbbangSeq600Review',REVIEW_SCHEDULE_KEY,DAILY_REVIEW_KEY,REVIEW_RESET_KEY,'ilbbangSeqVoiceRate',REWARD_KEY,REDEEM_KEY,REWARD_SHOP_KEY,KEKE_PROGRESS_KEY,SPEAKING_PASS_KEY,SPEAKING_ATTEMPT_KEY];
 function collectBackup(){const data={};BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)data[k]=v;});return {app:'ilbbangSeq600',version:1,createdAt:new Date().toISOString(),profileId:$('profileSelect')?.value||'',data};}
 window.onNativeBackupStatus = message => {$('backupStatus').textContent=message;};
 $('exportBackup').onclick=()=>{
@@ -1296,7 +1300,7 @@ async function registerPushDevice() {
     return false;
   }
 }
-const CLOUD_KEYS = [
+const CLOUD_KEYS = [RECORD_EDITS_KEY,
   'ilbbangSeq600Records', 'ilbbangSeq600Start', 'ilbbangSeq600Checked',
   'ilbbangSeq600Review', REVIEW_SCHEDULE_KEY, DAILY_REVIEW_KEY, REVIEW_RESET_KEY, 'ilbbangSeqVoiceRate',
   'ilbbangSeq600StarAwards', 'ilbbangSeq600RewardRequests', 'ilbbangRewardShopData', 'ilbbangKekeGrowthDays', 'ilbbangMinseoFootballChoice',
@@ -1647,6 +1651,10 @@ function mergeSnapshots(cloudData, localData) {
   for (const key of ['ilbbangSeq600Start','ilbbangSeqVoiceRate']) {
     if (cloudData?.[key] === undefined && localData?.[key] !== undefined) merged[key] = localData[key];
   }
+  const edits={...parseObject(cloudData?.[RECORD_EDITS_KEY])};
+  for(const [k,v] of Object.entries(parseObject(localData?.[RECORD_EDITS_KEY])))if(!edits[k]||v.at>=edits[k].at)edits[k]=v;
+  const records=parseObject(merged['ilbbangSeq600Records']);for(const [k,v] of Object.entries(edits))if(v.done)records[k]=true;else delete records[k];
+  merged[RECORD_EDITS_KEY]=JSON.stringify(edits);merged['ilbbangSeq600Records']=JSON.stringify(records);
   return merged;
 }
 function applySnapshot(data) {
@@ -1664,7 +1672,6 @@ function applySnapshot(data) {
       document.getElementById('rateLabel').textContent = Number(rate).toFixed(2) + '배';
     }
   } finally { suppressSync = false; }
-  previewDay = null;
   renderCalendar();
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
@@ -1902,7 +1909,7 @@ async function saveCloudSnapshot(reason = '자동') {
       const cloud = snap.exists() ? snap.data() : {};
       if (Array.isArray(cloud.profiles) && !cloud.profiles.some(p=>p.id===savingProfileId)) return;
       if (switchingProfile || activeProfileId!==savingProfileId) return;
-      const allData = { ...(cloud.profileData || {}), [savingProfileId]: localData };
+      const allData = { ...(cloud.profileData || {}), [savingProfileId]: mergeSnapshots(cloud.profileData?.[savingProfileId],localData) };
       // 일반 학습 기록 저장에서는 클라우드의 최신 프로필 목록을 보존합니다.
       // 오래 열린 다른 기기의 오래된 profiles 배열이 새 프로필을 덮어쓰지 않게 합니다.
       const cloudProfiles = Array.isArray(cloud.profiles) && cloud.profiles.length
@@ -1915,7 +1922,7 @@ async function saveCloudSnapshot(reason = '자동') {
         updatedAt: serverTimestamp()
       });
       profiles = cloudProfiles.map(p => ({id:String(p.id), name:String(p.name || '프로필')}));
-      lastCloudData = localData;
+      lastCloudData = allData[savingProfileId];
     });
     status(`☁️ 로그인됨 · ${profiles.find(p=>p.id===activeProfileId)?.name || '프로필'} 기록 저장 완료`);
     if (reason === 'manual') message('지금 동기화했어요. 다른 휴대폰에서도 같은 프로필을 선택하면 기록을 볼 수 있어요.');
@@ -1949,7 +1956,7 @@ async function loadAndMergeCloud(user) {
       localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
       profileData = {[activeProfileId]: localData};
       await setDoc(ref, { profiles, activeProfileId, profileData, updatedAt: serverTimestamp() });
-      lastCloudData = localData;
+      lastCloudData = allData[savingProfileId];
       syncReady = true;
     if (window.IlbbangAndroid && typeof registerNativeFcmTokenIfReady === 'function') registerNativeFcmTokenIfReady().catch(e => console.warn('Android FCM token sync pending', e));
       status('☁️ 첫 동기화 완료 · 기존 기록을 첫 프로필에 보관했어요.');

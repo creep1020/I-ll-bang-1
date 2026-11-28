@@ -823,6 +823,7 @@ function finishRecording(){
 }
 
 function render(){
+ renderCalendar();
  ensureReviewSchedules();
  const due=dueReviewItems();
  const day=currentDay(),data=DATA[day-1],records=readRecords(),done=dayCompleted(day,records);
@@ -1652,6 +1653,8 @@ function applySnapshot(data) {
       document.getElementById('rateLabel').textContent = Number(rate).toFixed(2) + '배';
     }
   } finally { suppressSync = false; }
+  previewDay = null;
+  renderCalendar();
   if (typeof window.ilbbangRenderAfterCloudSync === 'function') window.ilbbangRenderAfterCloudSync();
 }
 const notifySettingsRef = () => currentUid ? doc(db, 'ilbbangUsers', currentUid, 'privateSettings', 'notifications') : null;
@@ -1878,14 +1881,17 @@ async function persistProfileState() {
 async function saveCloudSnapshot(reason = '자동') {
   if (!syncReady || !currentUid || suppressSync || switchingProfile) return;
   const uid = currentUid;
+  const savingProfileId = activeProfileId;
   const localData = readLocalSnapshot();
   const ref = doc(db, 'ilbbangUsers', uid);
   try {
-    profileData[activeProfileId] = localData;
+    profileData[savingProfileId] = localData;
     await runTransaction(db, async transaction => {
       const snap = await transaction.get(ref);
       const cloud = snap.exists() ? snap.data() : {};
-      const allData = { ...(cloud.profileData || {}), [activeProfileId]: localData };
+      if (Array.isArray(cloud.profiles) && !cloud.profiles.some(p=>p.id===savingProfileId)) return;
+      if (switchingProfile || activeProfileId!==savingProfileId) return;
+      const allData = { ...(cloud.profileData || {}), [savingProfileId]: localData };
       // 일반 학습 기록 저장에서는 클라우드의 최신 프로필 목록을 보존합니다.
       // 오래 열린 다른 기기의 오래된 profiles 배열이 새 프로필을 덮어쓰지 않게 합니다.
       const cloudProfiles = Array.isArray(cloud.profiles) && cloud.profiles.length
@@ -1925,6 +1931,7 @@ async function loadAndMergeCloud(user) {
   try {
     const snap = await getDoc(ref);
     const localData = readLocalSnapshot();
+    const savedProfileForMerge = localStorage.getItem(ACTIVE_PROFILE_KEY);
     if (!snap.exists()) {
       profiles = [{...DEFAULT_PROFILE}];
       activeProfileId = DEFAULT_PROFILE.id;
@@ -1950,7 +1957,7 @@ async function loadAndMergeCloud(user) {
         profileData = {[activeProfileId]: cloud.data || {}};
       }
       const prior = profileData[activeProfileId] || {};
-      const merged = mergeSnapshots(prior, localData);
+      const merged = savedProfileForMerge === activeProfileId || (!savedProfileForMerge && !Object.keys(prior).length) ? mergeSnapshots(prior, localData) : prior;
       profileData[activeProfileId] = merged;
       await setDoc(ref, { profiles, activeProfileId, profileData, updatedAt: serverTimestamp() });
       lastCloudData = merged;
@@ -2047,31 +2054,49 @@ $login('renameProfile').onclick = async () => {
   try { await persistProfileState(); updateProfileControls(); profileMessage('프로필 이름을 변경했어요.'); }
   catch(error) { message('이름 변경 실패: ' + error.message); }
 };
+// Use an in-page confirmation compatible with Android WebView.
+function confirmProfileDeletion(name) {
+  return new Promise(resolve => {
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:100000;background:#0008;display:grid;place-items:center;padding:20px';
+    const card=document.createElement('div'); card.style.cssText='background:white;border-radius:16px;padding:20px;max-width:360px;width:100%';
+    const text=document.createElement('p'); text.textContent=`'${name}' 프로필과 학습 기록을 삭제할까요? 되돌릴 수 없습니다.`;
+    const cancel=document.createElement('button');cancel.textContent='취소';
+    const ok=document.createElement('button');ok.textContent='삭제';ok.style.cssText='margin-left:10px;color:#a33';
+    const finish=value=>{overlay.remove();resolve(value);};
+    cancel.onclick=()=>finish(false);ok.onclick=()=>finish(true);
+    card.append(text,cancel,ok);overlay.append(card);document.body.append(overlay);
+  });
+}
 $login('deleteProfile').onclick = async () => {
-  if (profiles.length <= 1) return;
+  if (!syncReady || switchingProfile || profiles.length <= 1) return;
   const current = profiles.find(p=>p.id===activeProfileId);
-  if (!current || !confirm(`'${current.name}' 프로필과 그 학습 기록을 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) return;
-  const replacement = profiles.find(p=>p.id!==activeProfileId);
+  if (!current) return;
+  switchingProfile=true;
+  $login('deleteProfile').disabled=true;
   try {
-    profiles = profiles.filter(p=>p.id!==activeProfileId);
-    delete profileData[activeProfileId];
-    activeProfileId = replacement.id;
-    localStorage.setItem(ACTIVE_PROFILE_KEY, activeProfileId);
-    const selected = profileData[activeProfileId] || {};
-    applySnapshot(selected);
-    const ref = doc(db, 'ilbbangUsers', currentUid);
-    await runTransaction(db, async transaction => {
-      const snap = await transaction.get(ref);
-      const cloud = snap.exists() ? snap.data() : {};
-      const allData = { ...(cloud.profileData || {}), [activeProfileId]: readLocalSnapshot() };
+    if (!await confirmProfileDeletion(current.name)) return;
+    clearTimeout(saveTimer);
+    const ref=doc(db,'ilbbangUsers',currentUid);
+    const result=await runTransaction(db,async transaction=>{
+      const snap=await transaction.get(ref);
+      const cloud=snap.data()||{};
+      const remaining=(cloud.profiles||profiles).filter(p=>p.id!==current.id);
+      if(!remaining.length) throw new Error('마지막 프로필은 삭제할 수 없어요.');
+      const nextId=remaining[0].id;
+      const allData={...(cloud.profileData||{})};
       delete allData[current.id];
-      transaction.set(ref, { profiles, activeProfileId, profileData: allData, updatedAt: serverTimestamp() });
-      lastCloudData = allData[activeProfileId];
+      transaction.set(ref,{profiles:remaining,activeProfileId:nextId,profileData:allData,updatedAt:serverTimestamp()});
+      return {remaining,nextId,allData};
     });
-    lastCloudData = selected;
-    updateProfileControls();
+    profiles=result.remaining;profileData=result.allData;activeProfileId=result.nextId;
+    localStorage.setItem(ACTIVE_PROFILE_KEY,activeProfileId);
+    lastCloudData=profileData[activeProfileId]||{};
+    applySnapshot(lastCloudData);
     status(`${current.name} 프로필을 삭제했어요.`);
-  } catch(error) { message('프로필 삭제 실패: ' + error.message); }
+    profileMessage(`${current.name} 프로필을 삭제했어요.`);
+  } catch(error) { profileMessage('프로필 삭제 실패: '+error.message); }
+  finally { switchingProfile=false;updateProfileControls(); }
 };
 
 $login('parentLogin').onclick = async () => {
